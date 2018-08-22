@@ -1,0 +1,33 @@
+.dw-input-inline {
+	display: inline-block;
+	width: auto;
+}
+
+.dw-need-update {
+  border-color: rgba(169, 68, 68, 1);
+}
+
+.dw-need-update:focus {
+  box-shadow: inset 0 1px 1px rgba(0,0,0,.075), 0 0 8px rgba(169, 68, 68, 0.6);
+}
+
+
+.wiki-article pre {
+	max-width: 800px;
+	max-height: 700px;
+}
+.dw-input-output {
+	position: relative;
+}
+.dw-input-output pre {
+	max-width: 800px;
+	max-height: 700px;
+	min-height: 100px;
+}
+.dw-input-output .status {
+	position: absolute;
+	top: 5px;
+	right: 10px;
+}
+
+

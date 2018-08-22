@@ -1,0 +1,7 @@
+{% if cmd == 'display' %}
+<kbd class="dw-input">{{src_}}</kbd>
+{% else %}
+<input class="form-control dw-input{% if attr.inline %} dw-input-inline{% endif %}"
+       type="text"
+       disabled />
+{% endif %}
