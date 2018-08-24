@@ -12,10 +12,19 @@ $.ajaxSetup({
 
 
 function receiveMessage(msg) {
+  var type = String(msg['type']);
   var fid = Number(msg['id']);
-  var e = $('span[data-id=' + fid + '].dw-input');
 
-  e.html(msg['html']);
+  if (type == 'input') {
+    $('input[data-id=' + fid + '].dw-input')
+      .val(String(msg['val']))
+      .prop('disabled', Boolean(msg['disabled']));
+  }
+
+  if (type == 'display') {
+    $('span[data-id=' + fid + '].dw-input')
+      .html(msg['val'] ? msg['val'] : "");
+  }
 }
 
 
@@ -25,6 +34,7 @@ $(document).ready(function() {
   webSocketBridge.connect('/ws/django-wiki-inputs?path=' + location.pathname);
   webSocketBridge.listen(receiveMessage)
 })
+
 
 $('input[data-id].dw-input').on('input', function() {
     var e = $(this);
@@ -51,4 +61,3 @@ $('input[data-id].dw-input').on('input', function() {
       }
     });
   });
-

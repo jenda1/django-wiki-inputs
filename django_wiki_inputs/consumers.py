@@ -11,12 +11,102 @@ import re
 from . import models
 import pathlib
 import json
+from collections import defaultdict
+from django.contrib.auth.models import User, Group
+
+from .fn import * # NOQA
 
 import ipdb # NOQA
 
 logger = logging.getLogger(__name__)
 
 preview_re = re.compile(r'^(.+/|)_preview/$')
+
+
+def can_read_input(inp, user):
+    return True     # FIXME !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+
+class _MarkdownFactory(object):
+    def __init__(self):
+        self.cache = defaultdict(dict)
+
+    async def get_markdown(self, path, user):
+        article = await self.db_get_article(path)
+        if article is None or not article.can_read(user):
+            raise KeyError()
+
+        try:
+            md = self.cache[article.pk][user.pk]
+            if md.article_revision_pk == article.current_revision.pk:
+                return md
+        except KeyError:
+            pass
+
+        logger.info(f"{user}@{path}: render current version")
+        md = ArticleMarkdown(article, user=user, preview=True)
+        md.convert(article.current_revision.content)
+        md.article_revision_pk = article.current_revision.pk
+
+        for inp in md.input_fields:
+            logger.debug(f"{user}@{path}: {inp}")
+
+        self.cache[article.pk][user.pk] = md
+
+        return md
+
+
+    async def get_field(self, root, path, user):
+        path_full = (root/path['path']).resolve()
+        md = await self.get_markdown(path_full.parent, user)
+
+        if 'grp' in path:
+            if not user.groups.filter(name=path['grp']).exists():
+                raise KeyError()
+
+        for inp in md.input_fields:
+            if inp['cmd'] == 'input' and inp['name'] == path_full.name:
+                if ('grp' in path or 'usr' in path) and not can_read_input(inp, user):
+                    raise KeyError()
+
+                if 'grp' in path:
+                    grp = Group.objects.get(name=path['grp'])
+                    return {i.owner: json.loads(i.val) for i in await self.db_get_input_grp(md.article, inp['name'], grp)}
+                else:
+                    usr = User.objects.get(username=path['usr']) if 'usr' in path else user
+                    return await self.db_get_input_usr(md.article, inp['name'], usr)
+
+        # FIXME: other sources
+
+
+
+    @database_sync_to_async
+    def db_get_input_usr(self, article, name, usr):
+        return models.Input.objects.filter(
+            article=article,
+            name=name,
+            owner=usr,
+            newer__isnull=True).last()
+
+
+    @database_sync_to_async
+    def db_get_input_grp(self, article, name, grp):
+        return models.Input.objects.filter(
+            article=article,
+            name=name,
+            owner__groups__name=grp,
+            newer__isnull=True)
+
+
+    @database_sync_to_async
+    def db_get_article(self, path):
+        p = URLPath.get_by_path(str(path))
+
+        return p.article if p else None
+
+
+
+_markdown_factory = _MarkdownFactory()
 
 
 class InputConsumer(AsyncJsonWebsocketConsumer):
@@ -41,20 +131,12 @@ class InputConsumer(AsyncJsonWebsocketConsumer):
             return
 
         try:
-            self.article = await self.db_get_article()
-            if self.article is None:
-                await self.accept()
-                return
-
-            self.md = ArticleMarkdown(self.article, user=self.user, preview=True)
-            self.md.convert(self.article.current_revision.content)
-        except Exception as e:
-            await self.close()
-            raise e
+            self.md = await _markdown_factory.get_markdown(self.path, self.user)
+        except KeyError as e:
+            await self.accept()
+            return
 
         await self.init_data()
-
-        logger.info(f"{self.user}@{self.path}: accept")
         await self.accept()
 
         self.tasks = list()
@@ -66,6 +148,21 @@ class InputConsumer(AsyncJsonWebsocketConsumer):
             await self.channel_layer.group_add(g, self.channel_name)
 
 
+    def display_groups(self, fn):
+        grps = set()
+
+        for p in fn['args']:
+            if type(p) is not dict:
+                continue
+
+            if 'path' in p:
+                grps.add(self.path_to_group(p['path']))
+            elif 'fname' in p:
+                grps |= self.display_groups(p)
+
+        return grps
+
+
     async def init_data(self):
         self.input = dict()
         self.display = dict()
@@ -73,7 +170,7 @@ class InputConsumer(AsyncJsonWebsocketConsumer):
 
         for idx, field in enumerate(self.md.input_fields):
             if field['cmd'] == 'input':
-                grps = [self.path_to_group(field['name'])]
+                grps = set([self.path_to_group(field['name'])])
 
                 self.input[idx] = {
                     'name': field['name'],
@@ -83,26 +180,17 @@ class InputConsumer(AsyncJsonWebsocketConsumer):
                 }
 
             elif field['cmd'] == 'display':
-                if 'name' in field:
-                    grps = [self.path_to_group(field['name'])]
+                grps = self.display_groups(field['fn'])
 
-                    self.display[idx] = {
-                        'groups': grps,
-                    }
-
-                elif 'fn' in field:
-                    grps = [self.path_to_group(p) for p in field['fn']['args'] if isinstance(p, pathlib.Path)]
-
-                    self.display[idx] = {
-                        'groups': grps
-                    }
-                else:
-                    assert False
+                self.display[idx] = {
+                    'fn': field['fn'],
+                    'groups': grps,
+                }
 
             else:
                 assert False
 
-            self.groups |= set(grps)
+            self.groups |= grps
 
 
     def path_to_group(self, p):
@@ -126,18 +214,10 @@ class InputConsumer(AsyncJsonWebsocketConsumer):
         logger.info("{}@{}: disconnect{}".format(self.user, self.path, f", cancelling {n} tasks" if n > 0 else ""))
 
 
-
-    @database_sync_to_async
-    def db_get_article(self):
-        p = URLPath.get_by_path(str(self.path), select_related=True)
-        if p and p.article.can_read(self.user):
-            return p.article
-
-
     @database_sync_to_async
     def db_get_input(self, name):
         return models.Input.objects.filter(
-            article=self.article,
+            article=self.md.article,
             owner=self.user,
             name=name,
             newer__isnull=True).last()
@@ -149,7 +229,7 @@ class InputConsumer(AsyncJsonWebsocketConsumer):
 
         with transaction.atomic():
             n = models.Input.objects.create(
-                article=self.article,
+                article=self.md.article,
                 name=inp['name'],
                 created=ts,
                 owner=self.user,
@@ -162,14 +242,55 @@ class InputConsumer(AsyncJsonWebsocketConsumer):
                 inp['curr'] = n
 
 
+    async def display_value(self, field):
+        args = list()
+
+        if field['fname'] is None:
+            fnc = lambda x: x[0]
+        else:
+            logger.warning(f"{self.user}@{self.path}: unknown fname {field['fname']}")
+            return None
+
+
+        for a in field['args']:
+            if type(a) in [int, str, float]:
+                args.append(a)
+
+            elif type(a) is dict and 'fname' in a:
+                args.append(await self.display_value(a))
+
+            elif type(a) is dict and 'path' in a:
+                try:
+                    val = await _markdown_factory.get_field(self.path, a, self.user)
+                except Exception as e:
+                    val = None
+                    logger.warning(f"{self.user}@{self.path}: get_field {a} fails ({e})")
+
+                args.append(val)
+            else:
+                assert 1 == 0
+
+        return fnc(args)
+
+
+
+
     async def send_field(self, idx):
+        content = dict(id=idx)
+
         if idx in self.input:
-            i = self.input[idx]
-            content = dict(id=idx, val=i['curr'].val if i['curr'] else None)
+            content['type'] = 'input'
+            content['disabled'] = False
 
-            logger.debug(f"{self.user}@{self.path}: send {{:.60s}} ...".format(' '.join(str(content).split())))
+            if self.input[idx]['curr']:
+                content['val'] = json.loads(self.input[idx]['curr'].val)
 
-            await self.send_json(content)
+        elif idx in self.display:
+            content['type'] = 'display'
+            content['val'] = await self.display_value(self.display[idx]['fn'])
+
+        logger.debug(f"{self.user}@{self.path}: send {{:.60s}} ...".format(' '.join(str(content).split())))
+        await self.send_json(content)
 
 
     async def input_update(self, event):
