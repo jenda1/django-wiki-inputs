@@ -4,7 +4,7 @@ from django.contrib import admin
 from . import models
 
 
-@admin.register(Input)
+@admin.register(models.Input)
 class InputAdmin(admin.ModelAdmin):
     list_display = (
         'id',

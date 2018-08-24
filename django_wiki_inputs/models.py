@@ -30,9 +30,9 @@ class Input(models.Model):
 
 
     def __str__(self):
-        return '{}{}.{}{}:{:s.60}{}'.format(
+        return '{}{}.{}{}:{:.60s}{}'.format(
             "" if self.newer is None else "#",
-            self.article.pk,
+            self.article,
             self.name,
             "" if self.owner is None else "@{}".format(self.owner),
             self.val,
