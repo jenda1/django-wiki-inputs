@@ -11,7 +11,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 # FIXME: pident pattern should not allow '_' at the end, the names are used internally
-pident = pp.Word(pp.alphas, pp.alphas+pp.nums+"_").setResultsName('id')
+pident = pp.Combine(pp.Word(pp.alphas, pp.alphas+pp.nums) + pp.ZeroOrMore("_" + pp.Word(pp.alphas+pp.nums)))
 pfname = pp.Word(pp.alphas+pp.nums+"-")
 
 pint = pp.Combine(pp.Optional('-')+pp.Word(pp.nums)).setParseAction(lambda t: int(t[0]))
@@ -21,6 +21,11 @@ pstr = pp.quotedString.addParseAction(pp.removeQuotes).addParseAction(lambda t: 
 ppath = pp.Group(
     pp.Optional("/") + pp.ZeroOrMore((pfname ^ "..") + pp.Literal('/').suppress()) + pfname
 ).setParseAction(lambda t: Path(*t[0]))
+
+ppath_full = pp.Group(
+    ppath.setResultsName('path') + pp.Optional(pp.Literal('@').suppress() + (
+        (pp.Literal("_") + pident.setResultsName('grp') + pp.Literal("_")) ^
+        pident.setResultsName('usr'))))
 
 pinput = (pp.Literal('[').suppress() +
           pp.CaselessKeyword('input').setResultsName('cmd') +
@@ -33,14 +38,13 @@ pinput = (pp.Literal('[').suppress() +
                       (pint ^ pfloat ^ pstr)))).setResultsName('attr') +
           pp.Literal(']').suppress())
 
+pexpr = pp.Forward()
+pexpr << pident.setResultsName('fname') + pp.Literal('(').suppress() + pp.delimitedList(pint ^ pfloat ^ pstr ^ ppath_full ^ pp.Group(pexpr), delim=",").setResultsName('args') + pp.Literal(')').suppress()
+
 pdisplay = (pp.Literal('[').suppress() +
             pp.CaselessKeyword('display').setResultsName('cmd') + (
-                ppath.setResultsName("name") ^
-                pp.Group(
-                    pident.setResultsName('fname') +
-                    pp.Literal('(').suppress() +
-                    pp.delimitedList(pint ^ pfloat ^ pstr ^ ppath, delim=",").setResultsName('args') +
-                    pp.Literal(')').suppress()).setResultsName('fn')) +
+                ppath_full.setResultsName('fn').addParseAction(lambda t: dict(fname=None, args=[t.asDict()['fn']])) ^
+                pp.Group(pexpr).setResultsName('fn')) +
             pp.Literal(']').suppress())
 
 pparser = pinput ^ pdisplay
