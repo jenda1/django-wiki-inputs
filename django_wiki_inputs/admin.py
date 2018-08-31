@@ -14,10 +14,6 @@ class InputAdmin(admin.ModelAdmin):
         'owner',
         'author',
         'val',
-        'newer_pk',
     )
-    list_filter = ('article', 'created', 'owner', 'author', 'newer')
+    list_filter = ('article', 'created', 'owner', 'author')
     search_fields = ('name',)
-
-    def newer_pk(self, obj):
-        return obj.newer.pk if obj.newer else "None"

@@ -19,19 +19,19 @@ class Input(models.Model):
     author = models.ForeignKey(User, help_text='the author of the input.', related_name='input_author', db_index=True, null=True, blank=True, on_delete=models.SET_NULL)
 
     val = models.TextField(blank=True, null=True)
-    newer = models.ForeignKey("self", db_index=True, null=True, blank=True, on_delete=models.SET_NULL)
 
 
     class Meta:
         verbose_name = _('Input')
         verbose_name_plural = _('Inputs')
-        unique_together = ('article', 'name', 'owner', 'newer')
+        unique_together = ('article', 'name', 'owner', 'created')
         ordering = ['article', 'name', 'owner', 'created']
+        get_latest_by = ['article', 'name', 'owner', 'created']
+
 
 
     def __str__(self):
-        return '{}{}.{}{}:{:.60s}{}'.format(
-            "" if self.newer is None else "#",
+        return '{}.{}{}:{:.60s}{}'.format(
             self.article,
             self.name,
             "" if self.owner is None else "@{}".format(self.owner),
