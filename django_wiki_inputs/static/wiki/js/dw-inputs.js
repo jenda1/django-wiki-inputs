@@ -16,9 +16,14 @@ function receiveMessage(msg) {
   var fid = Number(msg['id']);
 
   if (type == 'input') {
-    $('input[data-id=' + fid + '].dw-input')
-      .val(String(msg['val']))
-      .prop('disabled', Boolean(msg['disabled']));
+    if (msg['val'] === null) {
+      $('input[data-id=' + fid + '].dw-input')
+        .prop('disabled', Boolean(msg['disabled']));
+    } else {
+      $('input[data-id=' + fid + '].dw-input')
+        .val(String(msg['val']))
+        .prop('disabled', Boolean(msg['disabled']));
+    }
   }
 
   if (type == 'display') {

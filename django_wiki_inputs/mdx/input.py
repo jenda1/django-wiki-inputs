@@ -7,6 +7,10 @@ import pyparsing as pp
 import ipdb  # NOQA
 from pathlib import Path
 import logging
+from collections import defaultdict
+import asyncio
+from threading import Condition
+
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +29,7 @@ ppath = pp.Group(
 ppath_full = pp.Group(
     ppath.setResultsName('path') + pp.Optional(pp.Literal('@').suppress() + (
         (pp.Literal("_") + pident.setResultsName('grp') + pp.Literal("_")) ^
-        pident.setResultsName('usr'))))
+        pident.setResultsName('usr'))).setResultsName('filter'))
 
 pinput = (pp.Literal('[').suppress() +
           pp.CaselessKeyword('input').setResultsName('cmd') +
@@ -35,7 +39,7 @@ pinput = (pp.Literal('[').suppress() +
                   pp.Group(
                       pident +
                       pp.Literal('=').suppress() +
-                      (pint ^ pfloat ^ pstr)))).setResultsName('attr') +
+                      (pint ^ pfloat ^ pstr)))).setResultsName('args') +
           pp.Literal(']').suppress())
 
 pexpr = pp.Forward()
@@ -78,8 +82,8 @@ class InputPreprocessor(markdown.preprocessors.Preprocessor):
 
         for t, start, end in pparser.scanString(doc):
             ctx = t.asDict()
-            ctx['id_'] = len(self.input_fields)
-            ctx['src_'] = doc[(start+shift_n+1):(end+shift_n-1)]
+            ctx['id'] = len(self.input_fields)
+            ctx['src'] = doc[(start+shift_n+1):(end+shift_n-1)]
 
             tmpl = "preview.html" if self.markdown.preview else "input.html"
             html = render_to_string(f"wiki/plugins/inputs/{tmpl}", context=ctx)

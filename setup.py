@@ -15,6 +15,7 @@ requirements = [
     'wiki',
     'channels>=2.0',
     'pyparsing',
+    'aiostream',
 ]
 
 setup_requirements = [
