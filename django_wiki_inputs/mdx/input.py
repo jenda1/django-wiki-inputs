@@ -7,9 +7,6 @@ import pyparsing as pp
 import ipdb  # NOQA
 from pathlib import Path
 import logging
-from collections import defaultdict
-import asyncio
-from threading import Condition
 
 
 logger = logging.getLogger(__name__)
@@ -18,9 +15,9 @@ logger = logging.getLogger(__name__)
 pident = pp.Combine(pp.Word(pp.alphas, pp.alphas+pp.nums) + pp.ZeroOrMore("_" + pp.Word(pp.alphas+pp.nums)))
 pfname = pp.Word(pp.alphas+pp.nums+"-")
 
-pint = pp.Combine(pp.Optional('-')+pp.Word(pp.nums)).setParseAction(lambda t: int(t[0]))
-pfloat = pp.Combine(pp.Optional('-')+pp.Word(pp.nums)+pp.Literal('.')+pp.Word(pp.nums)).setParseAction(lambda t: float(t[0]))
-pstr = pp.quotedString.addParseAction(pp.removeQuotes).addParseAction(lambda t: str(t[0]))
+pint = pp.Combine(pp.Optional('-')+pp.Word(pp.nums)).setParseAction(lambda i: int(i[0]))
+pfloat = pp.Combine(pp.Optional('-')+pp.Word(pp.nums)+pp.Literal('.')+pp.Word(pp.nums)).setParseAction(lambda f: float(f[0]))
+pstr = pp.quotedString.addParseAction(pp.removeQuotes).addParseAction(lambda s: str(s[0]))
 
 ppath = pp.Group(
     pp.Optional("/") + pp.ZeroOrMore((pfname ^ "..") + pp.Literal('/').suppress()) + pfname

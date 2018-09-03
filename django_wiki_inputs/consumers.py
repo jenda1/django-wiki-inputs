@@ -54,29 +54,6 @@ def db_update_input(article, name, user, owner, val):
     return n
 
 
-
-#    def path_to_group(self, path):
-#        p = (self.path/path).resolve()
-#        return str(p).replace("/", ".")[1:]
-#
-#
-#    async def listen_display(self, idx, fn):
-#        for arg in fn['args']:
-#            if type(arg) is dict and 'path' in arg:
-#                await self.listen_path(idx, arg['path'])
-#            elif type(arg) is dict and 'fname' in arg:
-#                await self.listen_display(idx, arg)
-#
-#
-#    async def listen_path(self, idx, p):
-#        g = self.path_to_group(p)
-#        if g not in self.listen:
-#            self.listen[g] = set()
-#            await self.channel_layer.group_add(g, self.channel_name)
-#
-#        self.listen[g].add(idx)
-#
-
 class InputConsumer(AsyncJsonWebsocketConsumer):
     async def connect(self, *args, **kwargs):
         self.user = self.scope['user']

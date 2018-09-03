@@ -6,6 +6,7 @@ import json
 
 from . import models
 from . import misc
+from . import fn
 
 import ipdb # NOQA
 
@@ -34,7 +35,7 @@ def db_get_user(name):
 def db_get_group(name):
     try:
         return Group.objects.get(name=name)
-    except User.DoesNotExist:
+    except Group.DoesNotExist:
         return None
 
 
@@ -46,14 +47,14 @@ def db_is_user_in_group(user, grp):
 @database_sync_to_async
 def db_get_input_grp(article, name, grp):
     if grp is True:
-        logger.debug(models.Input.objects.filter(
+        return models.Input.objects.filter(
             article=article,
-            name=name).distinct(article, name, owner).query)
+            name=name).order_by('article', 'name', 'owner', '-created').distinct('article', 'name', 'owner')
     else:
-        logger.debug(models.Input.objects.filter(
+        return models.Input.objects.filter(
             article=article,
             owner__group=grp,
-            name=name).distinct(article, name, owner).query)
+            name=name).order_by('article', 'name', 'owner', '-created').distinct('article', 'name', 'owner')
 
 
 @database_sync_to_async
@@ -61,60 +62,78 @@ def db_user_group_exists(user, grp):
     return user.groups.filter(name=grp).exists()
 
 
+async def can_read_usr(md, inp, user):
+    if md.article.current_revision.user == user:
+        return True
+
+    if 'can_read' not in inp['args']:
+        return False
+
+    can_read = inp['args']['can_read']
+
+    if can_read == '_all_':
+        return True
+
+    # user is in the can_read group
+    if can_read == '_':
+        grp = await db_get_group(can_read.strip('_'))
+        if grp is None:
+            logger.debug(f"{md.article}: {inp['name']}: can_read use unknown group {can_read}")
+            return False
+
+        return await db_is_user_in_group(user, grp)
+
+    # or can_read equals to the user
+    return can_read == user.username or can_read == user.email
+
+
+
 @core.operator  # NOQA
 async def read_field(md, name, user, filt):
     for inp in md.input_fields:
         if inp['cmd'] == 'input' and inp['name'] == name:
-            filt_usr = None
-            filt_grp = None
-
-            if filt is None:
-                filt_usr = user
-                break
-
-            if 'can_read' in inp:
-                val = inp['can_read']
-
-                if val == '_all_':
-                    filt_grp = True
-                    break
-
-                elif val[0] == '_':
-                    filt_grp = await db_get_group(val.strip('_'))
-                    if filt_grp and db_is_user_in_group(user, filt_grp):
-                        break
-
-                elif val == user.username or val == user.email or md.article.current_revision.user == user:
-                    filt_usr = await db_get_user(val)
-                    if filt_usr:
-                        break
-
-                # user has read permission to the field
-                yield None
-                return
+            break
     else:
-        # FIXME: try other sources
         yield None
         return
 
-    curr = None
+    if not (filt is None or await can_read_usr(md, inp, user)):
+        yield None
+        return
+
+    f = user
+
+    if 'usr' in filt:
+        f = await db_get_user(filt['usr'])
+
+    elif 'grp' in filt and filt['grp'] == 'all':
+        f = True
+
+    elif 'grp' in filt:
+        f = await db_get_group(filt['grp'])
+
+    if f is None:
+        yield None
+        return
+
+    last = None
     while True:
-        if filt_usr:
-            db_val = await db_get_input(md.article, name, filt_usr)
+        if isinstance(f, User):
+            db_val = await db_get_input(md.article, name, f)
             if db_val is None:
                 yield None
 
-            elif curr and curr.pk == db_val.pk:
-                continue
-            else:
+            if last is None or last != db_val.pk:
+                last = db_val.pk
                 yield json.loads(db_val.val)
-                curr = db_val
 
-        elif filt_grp:
-            db_val = await db_get_input_grp(md.article, name, filt_grp)
-            # FIXME: check curr == db_val
+        elif f is True or isinstance(f, Group):
+            db_vals = await db_get_input_grp(md.article, name, f)
 
-            yield {i.owner: json.loads(i.val) for i in db_val}
+            curr = set([x.pk for x in db_vals])
+            if last is None or last != curr:
+                last = curr
+                yield {i.owner.username: json.loads(i.val) for i in db_vals}
 
         async with inp['cv']:
             await inp['cv'].wait()
@@ -126,46 +145,56 @@ async def display(ic, idx):
 
     async with core.streamcontext(source) as streamer:
         async for item in streamer:
-            yield {'type': 'display',
-                   'id': idx,
-                   'val': " ".join([str(x) for x in item if x is not None])}
+            yield {'type': 'display', 'id': idx, 'val': item}
 
+async def args_to_stream(user, path, args):
+    out = list()
 
-@core.operator
-async def display_fn(user, path, field):
-    args = list()
-    # if fnc['fname'] is None:
-    #    fnc = lambda x: x[0]
-    # else:
-    #    logger.warning(f"{self.user}@{self.path}: unknown fname {field['fname']}")
-    #    return None
-
-    for arg in field['args']:
+    for arg in args:
         if type(arg) in [int, str, float]:
-            args.append(stream.just(arg))
+            out.append(stream.just(arg))
 
         elif type(arg) is dict and 'fname' in arg:
-            args.append(display_fn(user, path, arg))
+            out.append(display_fn(user, path, arg))
 
         elif type(arg) is dict and 'path' in arg:
             p = (path/arg['path']).resolve()
             md = await misc.markdown_factory.get_markdown(p.parent, user)
             if md is None:
                 logger.debug(f"{user}@{path}: article {p.parent} does not exits or user has no read permission")
-                args.append(stream.empty())
+                out.append(stream.empty())
             else:
-                args.append(read_field(md, p.name, user, arg.get('filter')))
+                out.append(read_field(md, p.name, user, arg.get('filter')))
 
         else:
-            logger.warning(f"{user}@{path}: {field['src_']}: argument {arg}: unknow type")
-            args.append(stream.empty)
+            logger.warning(f"{user}@{path}: argument {arg}: unknow type")
+            out.append(stream.empty)
 
-    logger.debug("args:" + str(args))
-    source = stream.ziplatest(*args)
-    async with core.streamcontext(source) as streamer:
-        async for item in streamer:
-            logger.debug("item:" + str(item))
-            yield item
+    return stream.ziplatest(*out)
+
+
+@core.operator
+async def display_fn(user, path, field):
+    args = await args_to_stream(user, path, field['args'])
+
+    if field['fname'] is None:
+        source = args | fn.echo.echo
+    else:
+        try:
+            m = getattr(fn, field['fname'])
+            fnc = getattr(m, field['fname'])
+
+            source = args | fnc
+        except AttributeError:
+            logger.warning(f"{user}@{path}: unknown display method {field['fname']}")
+            source = stream.just("\u26A0") | fn.echo.echo
+
+    try:
+        async with core.streamcontext(source) as streamer:
+            async for item in streamer:
+                yield item
+    finally:
+        logger.debug(f"{user}@{path}: finalize function {field['fname']}")
 
 
 @core.operator
