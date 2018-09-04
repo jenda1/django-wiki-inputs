@@ -94,7 +94,7 @@ async def read_field(md, name, user, filt):
         if inp['cmd'] == 'input' and inp['name'] == name:
             break
     else:
-        yield None
+        yield md.source_fields.get(name, None)
         return
 
     if not (filt is None or await can_read_usr(md, inp, user)):

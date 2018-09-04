@@ -5,6 +5,7 @@ from wiki.core.plugins import registry
 from wiki.core.plugins.base import BasePlugin
 from . import settings
 from .mdx.input import InputExtension
+from .mdx.source import SourceExtension
 
 import ipdb  # NOQA
 
@@ -38,7 +39,7 @@ class InputsPlugin(BasePlugin):
             'all': 'wiki/css/dw-inputs.css',
         }
 
-    markdown_extensions = [InputExtension()]
+    markdown_extensions = [InputExtension(), SourceExtension()]
 
     html_whitelist = ['input', 'textarea', 'span', 'kbd']
     html_attributes = {
