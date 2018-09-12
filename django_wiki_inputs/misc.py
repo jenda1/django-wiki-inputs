@@ -1,13 +1,36 @@
+from django.contrib.auth.models import User, Group
 from wiki.models import URLPath
 from wiki.core.markdown import ArticleMarkdown
 from channels.db import database_sync_to_async
 from collections import defaultdict
 import logging
 import asyncio
+import pyparsing as pp
+from pathlib import Path
+from . import models
 
 import ipdb # NOQA
 
 logger = logging.getLogger(__name__)
+
+pp.ParserElement.setDefaultWhitespaceChars(' \t')
+
+# FIXME: pident pattern should not allow '_' at the end, the names are used internally
+pident = pp.Combine(pp.Word(pp.alphas, pp.alphas+pp.nums) + pp.ZeroOrMore("_" + pp.Word(pp.alphas+pp.nums)))
+pfname = pp.Word(pp.alphas+pp.nums+"-")
+
+pint = pp.Combine(pp.Optional('-')+pp.Word(pp.nums)).setParseAction(lambda i: int(i[0]))
+pfloat = pp.Combine(pp.Optional('-')+pp.Word(pp.nums)+pp.Literal('.')+pp.Word(pp.nums)).setParseAction(lambda f: float(f[0]))
+pstr = pp.quotedString.addParseAction(pp.removeQuotes).addParseAction(lambda s: str(s[0]))
+
+ppath = pp.Group(
+    pp.Optional("/") + pp.ZeroOrMore((pfname ^ "..") + pp.Literal('/').suppress()).leaveWhitespace() + pfname.leaveWhitespace()
+).setParseAction(lambda t: Path(*t[0]))
+
+ppath_full = pp.Group(
+    ppath.setResultsName('path') + pp.Optional(pp.Literal('@').suppress() + (
+        (pp.Literal("_") + pident.setResultsName('grp') + pp.Literal("_")) ^
+        pident.setResultsName('usr'))).setResultsName('filter'))
 
 
 @database_sync_to_async
@@ -24,14 +47,31 @@ def db_get_article_markdown(article):
     return md
 
 
-#            if ctx['cmd'] == 'input':
-#                if ctx['name'] in _input_cv[self.markdown.article.pk]:
-#                    cv = _input_cv[self.markdown.article.pk][ctx['name']]
-#                else:
-#                    cv = asyncio.Condition()
-#                    _input_cv[self.markdown.article.pk][ctx['name']] = cv
-#
-#                ctx['cv'] = cv
+@database_sync_to_async
+def db_get_group(name):
+    try:
+        return Group.objects.get(name=name)
+    except Group.DoesNotExist:
+        return None
+
+
+@database_sync_to_async
+def db_get_user(name):
+    try:
+        return User.objects.get(username=name)
+    except User.DoesNotExist:
+        try:
+            return User.objects.get(email=name)
+        except User.DoesNotExist:
+            return None
+
+
+@database_sync_to_async
+def db_get_input(article, name, user):
+    return models.Input.objects.filter(
+        article=article,
+        owner=user,
+        name=name).last()
 
 
 class _MarkdownFactory(object):
@@ -67,19 +107,5 @@ class _MarkdownFactory(object):
 
         return md
 
-
-# class _InputCVFactory(object):
-#     def __init__(self):
-#         self.cache = defaultdict(dict)
-#
-#    async def get_input_cv(self, article, name):
-#        try:
-#            return self.cache[article.pk][name]
-#        except KeyError:
-#            pass
-#
-#        cv = asyncio.Condition()
-#        self.cache[article.pk][name] = cv
-#        return cv
 
 markdown_factory = _MarkdownFactory()

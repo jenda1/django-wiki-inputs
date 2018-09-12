@@ -2,46 +2,30 @@ import markdown
 from django.template.loader import render_to_string
 import pyparsing as pp
 import ipdb  # NOQA
-from pathlib import Path
 import logging
 
+from .. import misc
 
 logger = logging.getLogger(__name__)
 
-# FIXME: pident pattern should not allow '_' at the end, the names are used internally
-pident = pp.Combine(pp.Word(pp.alphas, pp.alphas+pp.nums) + pp.ZeroOrMore("_" + pp.Word(pp.alphas+pp.nums)))
-pfname = pp.Word(pp.alphas+pp.nums+"-")
-
-pint = pp.Combine(pp.Optional('-')+pp.Word(pp.nums)).setParseAction(lambda i: int(i[0]))
-pfloat = pp.Combine(pp.Optional('-')+pp.Word(pp.nums)+pp.Literal('.')+pp.Word(pp.nums)).setParseAction(lambda f: float(f[0]))
-pstr = pp.quotedString.addParseAction(pp.removeQuotes).addParseAction(lambda s: str(s[0]))
-
-ppath = pp.Group(
-    pp.Optional("/") + pp.ZeroOrMore((pfname ^ "..") + pp.Literal('/').suppress()) + pfname
-).setParseAction(lambda t: Path(*t[0]))
-
-ppath_full = pp.Group(
-    ppath.setResultsName('path') + pp.Optional(pp.Literal('@').suppress() + (
-        (pp.Literal("_") + pident.setResultsName('grp') + pp.Literal("_")) ^
-        pident.setResultsName('usr'))).setResultsName('filter'))
 
 pinput = (pp.Literal('[').suppress() +
           pp.CaselessKeyword('input').setResultsName('cmd') +
-          pident.setResultsName('name') +
+          misc.pident.setResultsName('name') +
           pp.Dict(
               pp.ZeroOrMore(
                   pp.Group(
-                      pident +
+                      misc.pident +
                       pp.Literal('=').suppress() +
-                      (pint ^ pfloat ^ pstr)))).setResultsName('args') +
+                      (misc.pint ^ misc.pfloat ^ misc.pstr)))).setResultsName('args') +
           pp.Literal(']').suppress())
 
 pexpr = pp.Forward()
-pexpr << pident.setResultsName('fname') + pp.Literal('(').suppress() + pp.delimitedList(pint ^ pfloat ^ pstr ^ ppath_full ^ pp.Group(pexpr), delim=",").setResultsName('args') + pp.Literal(')').suppress()
+pexpr << misc.pident.setResultsName('fname') + pp.Literal('(').suppress() + pp.delimitedList(misc.pint ^ misc.pfloat ^ misc.pstr ^ misc.ppath_full ^ pp.Group(pexpr), delim=",").setResultsName('args') + pp.Literal(')').suppress()
 
 pdisplay = (pp.Literal('[').suppress() +
             pp.CaselessKeyword('display').setResultsName('cmd') + (
-                ppath_full.setResultsName('fn').addParseAction(lambda t: dict(fname=None, args=[t.asDict()['fn']])) ^
+                misc.ppath_full.setResultsName('fn').addParseAction(lambda t: dict(fname=None, args=[t.asDict()['fn']])) ^
                 pp.Group(pexpr).setResultsName('fn')) +
             pp.Literal(']').suppress())
 

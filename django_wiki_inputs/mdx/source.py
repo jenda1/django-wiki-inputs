@@ -1,9 +1,10 @@
 import markdown
 import logging
-import ipdb
+import ipdb  # NOQA
 
 logger = logging.getLogger(__name__)
 
+# FIXME: solve ```fdsafads``` blocks - codehilite escapes them before treeprocessor, need to add preprocessor to save the sources!
 
 class SourceExtension(markdown.Extension):
     """ Source plugin markdown extension for django-wiki. """
@@ -15,14 +16,7 @@ class SourceExtension(markdown.Extension):
 
         md.treeprocessors.add("source", src, "<hilite")
 
-        #md.registerExtension(self)
-
-
-def pp(e, sp=""):
-    print(sp, e.tag, e.attrib, e.text)
-
-    for b in e:
-        pp(b, sp + "    ")
+        # md.registerExtension(self)
 
 
 class SourceTreeprocessor(markdown.treeprocessors.Treeprocessor):
@@ -38,7 +32,6 @@ class SourceTreeprocessor(markdown.treeprocessors.Treeprocessor):
 
     def run(self, root):
         """ Find code blocks and store in htmlStash. """
-        #pp(root)
         for block in root:
             if block.tag in ['h1', 'h2', 'h3', 'h4', 'h5', 'h6']:
                 name = block.text

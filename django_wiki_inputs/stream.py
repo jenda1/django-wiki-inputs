@@ -12,36 +12,11 @@ import ipdb # NOQA
 
 logger = logging.getLogger(__name__)
 
-@database_sync_to_async
-def db_get_input(article, name, user):
-    return models.Input.objects.filter(
-        article=article,
-        owner=user,
-        name=name).last()
-
-
-@database_sync_to_async
-def db_get_user(name):
-    try:
-        return User.objects.get(username=name)
-    except User.DoesNotExist:
-        try:
-            return User.objects.get(email=name)
-        except User.DoesNotExist:
-            return None
-
-
-@database_sync_to_async
-def db_get_group(name):
-    try:
-        return Group.objects.get(name=name)
-    except Group.DoesNotExist:
-        return None
-
 
 @database_sync_to_async
 def db_is_user_in_group(user, grp):
     return user.groups.filter(name=grp.name).exists()
+
 
 
 @database_sync_to_async
@@ -62,6 +37,7 @@ def db_user_group_exists(user, grp):
     return user.groups.filter(name=grp).exists()
 
 
+
 async def can_read_usr(md, inp, user):
     if md.article.current_revision.user == user:
         return True
@@ -76,7 +52,7 @@ async def can_read_usr(md, inp, user):
 
     # user is in the can_read group
     if can_read == '_':
-        grp = await db_get_group(can_read.strip('_'))
+        grp = await misc.db_get_group(can_read.strip('_'))
         if grp is None:
             logger.debug(f"{md.article}: {inp['name']}: can_read use unknown group {can_read}")
             return False
@@ -103,14 +79,14 @@ async def read_field(md, name, user, filt):
 
     f = user
 
-    if 'usr' in filt:
-        f = await db_get_user(filt['usr'])
+    if filt and 'usr' in filt:
+        f = await misc.db_get_user(filt['usr'])
 
-    elif 'grp' in filt and filt['grp'] == 'all':
+    elif filt and 'grp' in filt and filt['grp'] == 'all':
         f = True
 
-    elif 'grp' in filt:
-        f = await db_get_group(filt['grp'])
+    elif filt and 'grp' in filt:
+        f = await misc.db_get_group(filt['grp'])
 
     if f is None:
         yield None
@@ -119,7 +95,7 @@ async def read_field(md, name, user, filt):
     last = None
     while True:
         if isinstance(f, User):
-            db_val = await db_get_input(md.article, name, f)
+            db_val = await misc.db_get_input(md.article, name, f)
             if db_val is None:
                 yield None
 
@@ -140,14 +116,7 @@ async def read_field(md, name, user, filt):
 
 
 @core.operator
-async def display(ic, idx):
-    source = display_fn(ic.user, ic.path, ic.md.input_fields[idx]['fn'])
-
-    async with core.streamcontext(source) as streamer:
-        async for item in streamer:
-            yield {'type': 'display', 'id': idx, 'val': item}
-
-async def args_to_stream(user, path, args):
+async def args_stream(user, path, args):
     out = list()
 
     for arg in args:
@@ -170,24 +139,28 @@ async def args_to_stream(user, path, args):
             logger.warning(f"{user}@{path}: argument {arg}: unknow type")
             out.append(stream.empty)
 
-    return stream.ziplatest(*out)
+    s = stream.ziplatest(*out)
+    async with core.streamcontext(s) as streamer:
+        async for i in streamer:
+            yield {'args': i}
 
 
 @core.operator
 async def display_fn(user, path, field):
-    args = await args_to_stream(user, path, field['args'])
+    # args = await args_to_stream(user, path, field['args'])
 
     if field['fname'] is None:
-        source = args | fn.echo.echo
+        source = fn.echo.echo(user, path, field['args'])
     else:
         try:
             m = getattr(fn, field['fname'])
             fnc = getattr(m, field['fname'])
 
-            source = args | fnc
+            source = fnc(user, path, field['args'])
         except AttributeError:
             logger.warning(f"{user}@{path}: unknown display method {field['fname']}")
-            source = stream.just("\u26A0") | fn.echo.echo
+            yield "\u26A0"
+            return
 
     try:
         async with core.streamcontext(source) as streamer:
@@ -198,8 +171,17 @@ async def display_fn(user, path, field):
 
 
 @core.operator
+async def display(ic, idx):
+    source = display_fn(ic.user, ic.path, ic.md.input_fields[idx]['fn'])
+
+    async with core.streamcontext(source) as streamer:
+        async for item in streamer:
+            yield {'type': 'display', 'id': idx, 'val': item}
+
+
+@core.operator
 async def input(ic, idx):
-    db_val = await db_get_input(ic.md.article, ic.md.input_fields[idx]['name'], ic.user)
+    db_val = await misc.db_get_input(ic.md.article, ic.md.input_fields[idx]['name'], ic.user)
     yield dict(type='input',
                id=idx,
                disabled=False,
