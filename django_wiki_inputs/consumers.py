@@ -57,6 +57,9 @@ def db_update_input(article, name, user, owner, val):
 class InputConsumer(AsyncJsonWebsocketConsumer):
     async def connect(self, *args, **kwargs):
         self.user = self.scope['user']
+        if self.user.is_authenticated == False:
+            await self.close()
+            return
 
         try:
             qs = parse_qs(self.scope['query_string'].decode())
