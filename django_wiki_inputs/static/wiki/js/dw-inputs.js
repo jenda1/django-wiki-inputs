@@ -17,10 +17,10 @@ function receiveMessage(msg) {
 
   if (type == 'input') {
     if (msg['val'] === null) {
-      $('input[data-id=' + fid + '].dw-input')
+      $('[data-id=' + fid + '].dw-input')
         .prop('disabled', Boolean(msg['disabled']));
     } else {
-      $('input[data-id=' + fid + '].dw-input')
+      $('[data-id=' + fid + '].dw-input')
         .val(String(msg['val']))
         .prop('disabled', Boolean(msg['disabled']));
     }
@@ -42,6 +42,28 @@ $(document).ready(function() {
 
 
 $('input[data-id].dw-input').on('input', function() {
+    var e = $(this);
+    var fid = e.attr('data-id');
+
+    e.addClass('dw-need-update');
+
+    if (e.data('send_update')) {
+      clearTimeout(e.data('send_update'));
+    }
+
+
+    e.change(function() {
+      if (e.data('send_update')) {
+        clearTimeout(e.data('send_update'));
+        e.removeData('send_update');
+        webSocketBridge.send({id: fid, val: e.val()});
+        e.removeClass('dw-need-update');
+      }
+    });
+  });
+
+
+$('textarea[data-id].dw-input').on('input', function() {
     var e = $(this);
     var fid = e.attr('data-id');
 

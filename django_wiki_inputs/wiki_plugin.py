@@ -44,7 +44,7 @@ class InputsPlugin(BasePlugin):
     html_whitelist = ['input', 'textarea', 'span', 'kbd']
     html_attributes = {
         'input': ['data-id', 'data-user', 'value', 'class', 'id', 'type', 'disabled', 'multiple'],
-        'textarea': ['data-id', 'class', 'id', 'type', 'disabled', 'multiple'],
+        'textarea': ['data-id', 'class', 'id', 'type', 'disabled', 'multiple', 'rows', 'cols'],
         'span': ['data-id', 'data-listen', 'class', 'id'],
         'kbd': ['class'],
     }

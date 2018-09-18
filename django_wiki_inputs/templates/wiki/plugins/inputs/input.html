@@ -2,16 +2,18 @@
 <span class="dw-input" data-id="{{id}}">
     <i class="fa fa-spinner fa-spin"></i>
 </span>
-{% elif type == 'text' or not type %}
+{% elif args.type == 'text' or not args.type %}
 <input class="form-control dw-input{% if args.inline %} dw-input-inline{% endif %}"
        type="text"
        data-id="{{id}}"
        disabled />
-{% elif type == 'file' %}
+{% elif args.type == 'file' %}
 <input class="form-control dw-input"
        type="file"
        data-id="{{id}}"
        multiple />
+{% elif args.type == 'textarea' %}aaa
+<textarea class="form-control dw-input" data-id="{{id}}" rows="4" disabled></textarea>
 {% else %}
-???
+{{args.type}}???
 {% endif %}

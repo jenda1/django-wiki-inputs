@@ -1,7 +1,13 @@
 {% if cmd == 'display' %}
-<kbd class="dw-input">{{src_}}</kbd>
-{% else %}
+<kbd class="dw-input">{{src}}</kbd>
+{% elif args.type == 'text' or not args.type %}
 <input class="form-control dw-input{% if attr.inline %} dw-input-inline{% endif %}"
        type="text"
        disabled />
+{% elif args.type == 'file' %}
+<input class="form-control dw-input" type="file" multiple disabled />
+{% elif args.type == 'textarea' %}
+<textarea class="form-control dw-input" disabled></textarea>
+{% else %}
+{{args.type}}???
 {% endif %}
