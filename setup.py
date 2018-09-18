@@ -34,7 +34,12 @@ setup(
     author="Jan Lána",
     author_email='lana.jan@gmail.com',
     url='https://github.com/jenda1/django-wiki-inputs',
-    packages=['django_wiki_inputs', 'django_wiki_inputs.mdx', 'django_wiki_inputs.migrations' ],
+    packages=[
+        'django_wiki_inputs',
+        'django_wiki_inputs.mdx',
+        'django_wiki_inputs.migrations',
+        'django_wiki_inputs.fn',
+        ],
     include_package_data=True,
     install_requires=requirements,
     license="GNU General Public License v3",

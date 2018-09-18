@@ -96,7 +96,10 @@ class InputConsumer(AsyncJsonWebsocketConsumer):
                 logger.error(f"{self.user}@{self.path}: unknown filed type {field['cmd']}")
 
         self.stream = stream.merge(*streams)
-        self.run_task = asyncio.create_task(self.run())
+
+        # python 3.6 does not have create_task() yet
+        # self.run_task = asyncio.create_task(self.run())
+        self.run_task = asyncio.ensure_future(self.run())
 
         await self.accept()
 
