@@ -7,13 +7,18 @@
        type="text"
        data-id="{{id}}"
        disabled />
-{% elif args.type == 'file' %}
+{% elif args.type == 'file' or args.type == 'files' %}
 <input class="form-control dw-input"
        type="file"
        data-id="{{id}}"
-       multiple />
-{% elif args.type == 'textarea' %}aaa
-<textarea class="form-control dw-input" data-id="{{id}}" rows="4" disabled></textarea>
+       {% if args.type == 'files' %} multiple{% endif %}
+       disabled />
+{% elif args.type == 'textarea' %}
+<textarea class="form-control dw-input"
+          data-id="{{id}}"
+          rows="4"
+          cols="40"
+          disabled></textarea>
 {% else %}
 {{args.type}}???
 {% endif %}

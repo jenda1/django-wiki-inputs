@@ -181,8 +181,13 @@ async def display(ic, idx):
 
 @core.operator
 async def input(ic, idx):
-    db_val = await misc.db_get_input(ic.md.article, ic.md.input_fields[idx]['name'], ic.user)
-    yield dict(type='input',
-               id=idx,
-               disabled=False,
-               val=json.loads(db_val.val) if db_val else None)
+    field = ic.md.input_fields[idx]
+
+    if 'args' in field and field['args'].get('type') in ['file', 'files']:
+        # input file has no value property
+        val = None
+    else:
+        db_val = await misc.db_get_input(ic.md.article, field['name'], ic.user)
+        val=json.loads(db_val.val) if db_val else None
+
+    yield dict(type='input', id=idx, disabled=False, val=val)

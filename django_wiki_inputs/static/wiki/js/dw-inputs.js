@@ -41,50 +41,59 @@ $(document).ready(function() {
 })
 
 
-$('input[data-id].dw-input').on('input', function() {
-    var e = $(this);
+
+function sendUpdate(e) {
     var fid = e.attr('data-id');
+    var type = e.attr('type');
 
-    e.addClass('dw-need-update');
+    if (type == 'file') {
+        var n = e.context.files.length;
+        var data = [];
 
-    if (e.data('send_update')) {
-      clearTimeout(e.data('send_update'));
-    }
+        for (var i = 0; i < n; i++) {
+            var reader = new FileReader();
+            //reader._file = ev.target.files[i];
+            reader._file = e.context.files[i];
 
+            reader.onload = function(ev2) {
+                data.push({name: ev2.target._file.name,
+                          size: ev2.target._file.size,
+                          type: ev2.target._file.type,
+                          content: ev2.target.result});
 
-    e.change(function() {
-      if (e.data('send_update')) {
-        clearTimeout(e.data('send_update'));
-        e.removeData('send_update');
+                if (data.length == n) {
+                    webSocketBridge.send({id: fid, val: data});
+                }
+            }
+            reader.readAsBinaryString(reader._file);
+        }
+    } else {
         webSocketBridge.send({id: fid, val: e.val()});
-        e.removeClass('dw-need-update');
-      }
-    });
-  });
-
-
-$('textarea[data-id].dw-input').on('input', function() {
-    var e = $(this);
-    var fid = e.attr('data-id');
-
-    e.addClass('dw-need-update');
-
-    if (e.data('send_update')) {
-      clearTimeout(e.data('send_update'));
     }
 
+    e.removeClass('dw-need-update');
+}
+
+
+$('input[data-id].dw-input, textarea[data-id].dw-input').on('input', function() {
+    var e = $(this);
+
+    if (e.data('send_update')) {
+        clearTimeout(e.data('send_update'));
+    }
+
+    e.addClass('dw-need-update');
     e.data('send_update', setTimeout(function() {
       e.removeData('send_update');
-      webSocketBridge.send({id: fid, val: e.val()});
-      e.removeClass('dw-need-update');
+      sendUpdate(e);
     }, 10000));
 
-    e.change(function() {
-      if (e.data('send_update')) {
-        clearTimeout(e.data('send_update'));
-        e.removeData('send_update');
-        webSocketBridge.send({id: fid, val: e.val()});
-        e.removeClass('dw-need-update');
-      }
+    e.change(function(ev) {
+        if (e.data('send_update')) {
+            clearTimeout(e.data('send_update'));
+            e.removeData('send_update');
+        }
+
+        sendUpdate(e);
     });
-  });
+});
