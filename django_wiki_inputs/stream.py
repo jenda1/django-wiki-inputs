@@ -39,7 +39,7 @@ def db_user_group_exists(user, grp):
 
 
 async def can_read_usr(md, inp, user):
-    if md.article.current_revision.user == user:
+    if md.article.current_revision.user.pk == user.pk:
         return True
 
     if 'can_read' not in inp['args']:
@@ -74,7 +74,7 @@ async def read_field(md, name, user, filt):
         return
 
     if not (filt is None or await can_read_usr(md, inp, user)):
-        yield None
+        yield "🛇"
         return
 
     f = user
@@ -183,7 +183,7 @@ async def display(ic, idx):
 async def input(ic, idx):
     field = ic.md.input_fields[idx]
 
-    if 'args' in field and field['args'].get('type') in ['file', 'files']:
+    if field['args'] and field['args'].get('type') in ['file', 'files']:
         # input file has no value property
         val = None
     else:
