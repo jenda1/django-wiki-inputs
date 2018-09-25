@@ -13,7 +13,7 @@
 
 
 .wiki-article pre {
-	max-width: 800px;
+	max-width: none;
 	max-height: 700px;
 }
 .dw-input-output {

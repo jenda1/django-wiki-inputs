@@ -1,0 +1,25 @@
+{% load wiki_forms_tags %}
+
+{% if type == 'str' or type == 'int' or type == 'float' %}
+{{val}}
+{% elif type == 'files' %}
+{% get_uuid as uid %}
+
+<ul class="nav nav-tabs">
+  {% for v in val %}
+  <li{% if forloop.first %} class="active"{% endif %}><a data-toggle="tab" href="#{{uid}}-{{forloop.counter}}">{{ v.name }}</a></li>
+  {% endfor %}
+</ul>
+<br/>
+<div class="tab-content">
+  {% for v in val %}
+  <div id="{{uid}}-{{forloop.counter}}" class="tab-pane fade{% if forloop.first %} in active{% endif %}">
+    {% if v.type %}{{ v.content|codehilite:v.type }}{% else %}{{ v.content|codehilite:'text/x-java' }}{% endif %}
+  </div>
+  {% endfor %}
+</div>
+
+{% else %}
+???{{type}}???
+{% endif %}
+

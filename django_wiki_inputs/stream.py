@@ -150,7 +150,7 @@ async def display_fn(user, path, field):
     # args = await args_to_stream(user, path, field['args'])
 
     if field['fname'] is None:
-        source = fn.echo.echo(user, path, field['args'])
+        source = fn.pprint.pprint(user, path, field['args'])
     else:
         try:
             m = getattr(fn, field['fname'])
@@ -167,7 +167,10 @@ async def display_fn(user, path, field):
             async for item in streamer:
                 yield item
     finally:
-        logger.debug(f"{user}@{path}: finalize function {field['fname']}")
+        if field['fname']:
+            logger.debug(f"{user}@{path}: finalize function {field['fname']}")
+        else:
+            logger.debug(f"{user}@{path}: finalize function pprint")
 
 
 @core.operator
@@ -183,11 +186,20 @@ async def display(ic, idx):
 async def input(ic, idx):
     field = ic.md.input_fields[idx]
 
-    if field['args'] and field['args'].get('type') in ['file', 'files']:
-        # input file has no value property
+    typ = field['args'].get('type', 'str') if field['args'] else 'str'
+    db_val = await misc.db_get_input(ic.md.article, field['name'], ic.user)
+
+    if db_val is None:
         val = None
     else:
-        db_val = await misc.db_get_input(ic.md.article, field['name'], ic.user)
         val=json.loads(db_val.val) if db_val else None
+
+        if typ != val['type']:
+            logger.warning(f"field type mismatch: {typ} != {val['type']}")
+
+        if typ in ['file', 'files']:
+            val = None
+        else:
+            val = str(val['val'])
 
     yield dict(type='input', id=idx, disabled=False, val=val)

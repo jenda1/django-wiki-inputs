@@ -137,6 +137,8 @@ class InputConsumer(AsyncJsonWebsocketConsumer):
             logger.warning(f"{self.user}@{self.path}: broken request {content!r}")
             return
 
-        await db_update_input(self.md.article, field['name'], self.user, owner, val)
+        t = field['args'].get('type', 'str') if field['args'] else 'str'
+        await db_update_input(self.md.article, field['name'], self.user, owner, { 'type': t, 'val': val })
+
         async with field['cv']:
             field['cv'].notify_all()
