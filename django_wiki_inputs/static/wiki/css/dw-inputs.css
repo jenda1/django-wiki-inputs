@@ -20,7 +20,7 @@
 	position: relative;
 }
 .dw-input-output pre {
-	max-width: 800px;
+	max-width: none;
 	max-height: 700px;
 	min-height: 100px;
 }

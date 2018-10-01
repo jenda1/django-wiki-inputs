@@ -99,7 +99,7 @@ async def read_field(md, name, user, filt):
             if db_val is None:
                 yield None
 
-            if last is None or last != db_val.pk:
+            elif last is None or last != db_val.pk:
                 last = db_val.pk
                 yield json.loads(db_val.val)
 
@@ -109,7 +109,8 @@ async def read_field(md, name, user, filt):
             curr = set([x.pk for x in db_vals])
             if last is None or last != curr:
                 last = curr
-                yield {i.owner.username: json.loads(i.val) for i in db_vals}
+                val = {i.owner: json.loads(i.val) for i in db_vals}
+                yield {'type': 'user-list', 'val': val}
 
         async with inp['cv']:
             await inp['cv'].wait()

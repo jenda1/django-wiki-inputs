@@ -39,6 +39,7 @@ setup(
         'django_wiki_inputs.mdx',
         'django_wiki_inputs.migrations',
         'django_wiki_inputs.fn',
+        'django_wiki_inputs.templatetags',
         ],
     include_package_data=True,
     install_requires=requirements,

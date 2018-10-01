@@ -1,6 +1,8 @@
 {% load wiki_forms_tags %}
 
-{% if type == 'str' or type == 'int' or type == 'float' %}
+{% if type == None %}
+&#129300;
+{% elif type == 'str' or type == 'int' or type == 'float' or type == 'textarea' %}
 {{val}}
 {% elif type == 'files' %}
 {% get_uuid as uid %}
@@ -18,7 +20,15 @@
   </div>
   {% endfor %}
 </div>
-
+ {% elif type == 'user-list' %}
+  <table>
+    {% for k,v in val.items %}
+    <tr>
+      <th>{{k.first_name}} {{k.last_name}}</th>
+      <td>{% include "wiki/plugins/inputs/pprint.html" with type=v.type val=v.val %}</td>
+    </tr>
+    {% endfor %}
+  </div>
 {% else %}
 ???{{type}}???
 {% endif %}

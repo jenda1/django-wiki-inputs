@@ -17,7 +17,7 @@ pp.ParserElement.setDefaultWhitespaceChars(' \t')
 
 # FIXME: pident pattern should not allow '_' at the end, the names are used internally
 pident = pp.Combine(pp.Word(pp.alphas, pp.alphas+pp.nums) + pp.ZeroOrMore("_" + pp.Word(pp.alphas+pp.nums)))
-pfname = pp.Word(pp.alphas+pp.nums+"-")
+pfname = pp.Word(pp.alphas+pp.nums+"-_")
 
 pint = pp.Combine(pp.Optional('-')+pp.Word(pp.nums)).setParseAction(lambda i: int(i[0]))
 pfloat = pp.Combine(pp.Optional('-')+pp.Word(pp.nums)+pp.Literal('.')+pp.Word(pp.nums)).setParseAction(lambda f: float(f[0]))
