@@ -16,6 +16,7 @@ requirements = [
     'channels>=2.0',
     'pyparsing',
     'aiostream',
+    'file-magic',
 ]
 
 setup_requirements = [

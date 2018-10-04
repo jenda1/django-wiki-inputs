@@ -9,6 +9,8 @@ import re
 import pathlib
 import json
 from aiostream import stream
+import magic
+import base64
 
 from . import stream as my_stream
 from . import models
@@ -20,7 +22,6 @@ import ipdb # NOQA
 logger = logging.getLogger(__name__)
 
 preview_re = re.compile(r'^(.+/|)_preview/$')
-
 
 @database_sync_to_async
 def db_update_input(article, name, user, owner, val):
@@ -130,15 +131,34 @@ class InputConsumer(AsyncJsonWebsocketConsumer):
             val = content['val']
             owner = content.get('owner', self.user)
         except Exception:
-            logger.warning(f"{self.user}@{self.path}: broken request {content!r}")
+            logger.warning(f"{self.user}@{self.path}: broken request")
             return
 
         if field['cmd'] != 'input':
-            logger.warning(f"{self.user}@{self.path}: broken request {content!r}")
+            logger.warning(f"{self.user}@{self.path}: broken request ({field['cmd']} != input)")
             return
 
-        t = field['args'].get('type', 'str') if field['args'] else 'str'
-        await db_update_input(self.md.article, field['name'], self.user, owner, { 'type': t, 'val': val })
+        typ = field['args'].get('type', 'str') if field['args'] else 'str'
+
+        # verify files input
+        if typ in ['file', 'files']:
+            try:
+                for i,x in enumerate(val):
+                    buf = base64.b64decode(x['content'], validate=True)
+                    m = magic.detect_from_content(buf)
+
+                    if val[i]['type'] != m.mime_type:
+                        if m.mime_type.startswith('text/') and val[i]['type'].startswith('text/'):
+                            pass    # libmagic is not good in text format detection
+                        else:
+                            logger.warning(f"{self.user}@{self.path}: different mimetype ({val[i]['type']} != {m.mime_type})")
+                            val[i]['type'] = m.mime_type
+
+            except Exception as e:
+                logger.warning(f"{self.user}@{self.path}: broken request - files encoding")
+                return
+
+        await db_update_input(self.md.article, field['name'], self.user, owner, { 'type': typ, 'val': val })
 
         async with field['cv']:
             field['cv'].notify_all()

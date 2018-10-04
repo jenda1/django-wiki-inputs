@@ -7,6 +7,7 @@ from django.contrib.auth.models import User
 import pprint
 import uuid
 import json
+import base64
 from django_wiki_inputs import models
 
 import pygments
@@ -29,3 +30,10 @@ def codehilite(value, arg):
             lexer = pygments.lexers.TextLexer()
 
     return mark_safe(pygments.highlight(value, lexer, pygments.formatters.HtmlFormatter(cssclass="codehilite")))
+
+
+@register.filter
+@stringfilter
+def b64decode(val):
+    return base64.b64decode(val).decode('utf-8')
+

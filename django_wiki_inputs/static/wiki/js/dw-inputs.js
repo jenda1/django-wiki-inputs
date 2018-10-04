@@ -56,16 +56,18 @@ function sendUpdate(e) {
             reader._file = e.context.files[i];
 
             reader.onload = function(ev2) {
+                var r = ev2.target.result.split(';base64,');
+
                 data.push({name: ev2.target._file.name,
                           size: ev2.target._file.size,
-                          type: ev2.target._file.type,
-                          content: ev2.target.result});
+                          type: r[0].slice(5),
+                          content: r[r.length - 1]});
 
                 if (data.length == n) {
                     webSocketBridge.send({id: fid, val: data});
                 }
             }
-            reader.readAsBinaryString(reader._file);
+            reader.readAsDataURL(reader._file);
         }
     } else {
         webSocketBridge.send({id: fid, val: e.val()});

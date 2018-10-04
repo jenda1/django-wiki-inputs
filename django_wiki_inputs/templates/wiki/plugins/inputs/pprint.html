@@ -16,7 +16,13 @@
 <div class="tab-content">
   {% for v in val %}
   <div id="{{uid}}-{{forloop.counter}}" class="tab-pane fade{% if forloop.first %} in active{% endif %}">
-    {% if v.type %}{{ v.content|codehilite:v.type }}{% else %}{{ v.content|codehilite:'text/x-java' }}{% endif %}
+    {% if v.type == 'image/jpeg' or v.type == 'image/png' %}
+    <object data="data:{{v.type}};base64,{{v.content}}" type="{{v.type}}"><p>{{v.name}}</p></object>
+    {% elif v.type %}
+    {{ v.content|b64decode|codehilite:v.type }}
+    {% else %}
+    {{ v.content|codehilite:'text/plain' }}
+    {% endif %}
   </div>
   {% endfor %}
 </div>
