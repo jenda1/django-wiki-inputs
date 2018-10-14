@@ -17,14 +17,15 @@ pp.ParserElement.setDefaultWhitespaceChars(' \t')
 
 # FIXME: pident pattern should not allow '_' at the end, the names are used internally
 pident = pp.Combine(pp.Word(pp.alphas, pp.alphas+pp.nums) + pp.ZeroOrMore("_" + pp.Word(pp.alphas+pp.nums)))
-pfname = pp.Word(pp.alphas+pp.nums+"-_")
+pfname = pp.Word(pp.alphas+pp.nums, pp.alphas+pp.nums+"-_.")
 
 pint = pp.Combine(pp.Optional('-')+pp.Word(pp.nums)).setParseAction(lambda i: int(i[0]))
 pfloat = pp.Combine(pp.Optional('-')+pp.Word(pp.nums)+pp.Literal('.')+pp.Word(pp.nums)).setParseAction(lambda f: float(f[0]))
 pstr = pp.quotedString.addParseAction(pp.removeQuotes).addParseAction(lambda s: str(s[0]))
 
 ppath = pp.Group(
-    pp.Optional("/") + pp.ZeroOrMore((pfname ^ "..") + pp.Literal('/').suppress()).leaveWhitespace() + pfname.leaveWhitespace()
+    "." ^
+    (pp.Optional("/") + pp.ZeroOrMore((pfname ^ "..") + pp.Literal('/').suppress()).leaveWhitespace() + pfname.leaveWhitespace())
 ).setParseAction(lambda t: Path(*t[0]))
 
 ppath_full = pp.Group(
@@ -35,8 +36,10 @@ ppath_full = pp.Group(
 
 @database_sync_to_async
 def db_get_article(path):
-    p = URLPath.get_by_path(str(path))
-    return p.article if p else None
+    try:
+        return URLPath.get_by_path(str(path)).article
+    except:
+        return None
 
 @database_sync_to_async
 def db_get_article_markdown(article):
@@ -81,7 +84,12 @@ class _MarkdownFactory(object):
 
     async def get_markdown(self, path, user):
         article = await db_get_article(path)
-        if article is None or not article.can_read(user):
+        if article is None:
+            logger.debug(f"{user}@{path}: article does not exits")
+            return None
+
+        if not article.can_read(user):
+            logger.debug(f"{user}@{path}: read forbidden")
             return None
 
         try:

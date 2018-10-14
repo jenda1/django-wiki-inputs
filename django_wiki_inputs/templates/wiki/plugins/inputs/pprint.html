@@ -21,7 +21,7 @@
     {% elif v.type %}
     {{ v.content|b64decode|codehilite:v.type }}
     {% else %}
-    {{ v.content|codehilite:'text/plain' }}
+    {{ v.content|b64decode|codehilite:'text/plain' }}
     {% endif %}
   </div>
   {% endfor %}

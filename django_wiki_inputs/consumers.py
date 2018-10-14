@@ -155,7 +155,7 @@ class InputConsumer(AsyncJsonWebsocketConsumer):
                             val[i]['type'] = m.mime_type
 
             except Exception as e:
-                logger.warning(f"{self.user}@{self.path}: broken request - files encoding")
+                logger.warning(f"{self.user}@{self.path}: broken request - {e}")
                 return
 
         await db_update_input(self.md.article, field['name'], self.user, owner, { 'type': typ, 'val': val })

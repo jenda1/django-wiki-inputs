@@ -32,6 +32,8 @@ class SourceTreeprocessor(markdown.treeprocessors.Treeprocessor):
 
     def run(self, root):
         """ Find code blocks and store in htmlStash. """
+        name = None
+
         for block in root:
             if block.tag in ['h1', 'h2', 'h3', 'h4', 'h5', 'h6']:
                 name = block.text
