@@ -56,12 +56,20 @@ function sendUpdate(e) {
             reader._file = e.context.files[i];
 
             reader.onload = function(ev2) {
-                var r = ev2.target.result.split(';base64,');
+                if (ev2.target.result == 'data:') {
+                    /* empty file */
+                    var content = "";
+                    var type = "application/x-empty";
+                } else {
+                    var r = ev2.target.result.split(';base64,');
+                    var type = r[0].slice(5);
+                    var content = r[r.length - 1];
+                }
 
                 data.push({name: ev2.target._file.name,
                           size: ev2.target._file.size,
-                          type: r[0].slice(5),
-                          content: r[r.length - 1]});
+                          type: type,
+                          content: content});
 
                 if (data.length == n) {
                     webSocketBridge.send({id: fid, val: data});
