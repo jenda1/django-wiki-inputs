@@ -8,6 +8,7 @@ import asyncio
 import pyparsing as pp
 from pathlib import Path
 from . import models
+import re
 
 import ipdb # NOQA
 
@@ -24,14 +25,12 @@ pfloat = pp.Combine(pp.Optional('-')+pp.Word(pp.nums)+pp.Literal('.')+pp.Word(pp
 pstr = pp.quotedString.addParseAction(pp.removeQuotes).addParseAction(lambda s: str(s[0]))
 
 ppath = pp.Group(
-    "." ^
-    (pp.Optional("/") + pp.ZeroOrMore((pfname ^ "..") + pp.Literal('/').suppress()).leaveWhitespace() + pfname.leaveWhitespace())
+    "." ^ (pp.Optional("/") + pp.ZeroOrMore((pfname ^ "..") + pp.Literal('/').suppress()).leaveWhitespace() + pfname.leaveWhitespace())
 ).setParseAction(lambda t: Path(*t[0]))
 
 ppath_full = pp.Group(
     ppath.setResultsName('path') + pp.Optional(pp.Literal('@').suppress() + (
-        (pp.Literal("_") + pident.setResultsName('grp') + pp.Literal("_")) ^
-        pident.setResultsName('usr'))).setResultsName('filter'))
+        (pp.Literal("_") + pident.setResultsName('grp') + pp.Literal("_")) ^ pident.setResultsName('usr'))).setResultsName('filter'))
 
 
 @database_sync_to_async
@@ -75,6 +74,39 @@ def db_get_input(article, name, user):
         article=article,
         owner=user,
         name=name).last()
+
+
+@database_sync_to_async
+def db_get_input_grp(article, name, grp):
+    if grp is True:
+        return models.Input.objects.filter(
+            article=article,
+            name=name).order_by('article', 'name', 'owner', '-created').distinct('article', 'name', 'owner')
+    else:
+        return models.Input.objects.filter(
+            article=article,
+            owner__group=grp,
+            name=name).order_by('article', 'name', 'owner', '-created').distinct('article', 'name', 'owner')
+
+
+
+
+email_re = re.compile(r'^.*?([a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+).*$')
+
+async def str_to_user(s):
+    if s is None:
+        return None
+
+    try:
+        m = email_re.match(s)
+    except:
+        ipdb.set_trace()
+
+    if not m:
+        return None
+
+    return await db_get_user(m.group(1))
+
 
 
 class _MarkdownFactory(object):

@@ -1,13 +1,13 @@
 from aiostream import core
 from django.template.loader import render_to_string
-import ipdb
+import ipdb  # NOQA
 
 from .. import stream
 
 
 @core.operator
-async def pprint(user, path, args):
-    source = stream.args_stream(user, path, args)
+async def pprint(ic, args):
+    source = stream.args_stream(ic, args)
 
     async with core.streamcontext(source) as streamer:
         async for item in streamer:
@@ -15,13 +15,13 @@ async def pprint(user, path, args):
 
             for i in item['args']:
                 if type(i) in [int, str, float]:
-                    val = { 'type': type(i), 'val': i }
+                    val = {'type': type(i), 'val': i}
 
                 elif type(i) is dict and 'type' in i:
                     val = i
 
                 else:
-                    val = { 'type': type(i), 'val': i }
+                    val = {'type': type(i), 'val': i}
 
                 out.append(render_to_string(f"wiki/plugins/inputs/pprint.html", context=val))
 

@@ -1,6 +1,10 @@
 .dw-input-inline {
-	display: inline-block;
-	width: auto;
+  display: inline-block;
+  width: auto;
+}
+
+.dw-not-owner {
+  background-color: #f1f3a370;
 }
 
 .dw-need-update {
@@ -13,11 +17,11 @@
 
 
 .wiki-article pre {
-	max-width: none;
-	max-height: 700px;
+  max-width: none;
+  max-height: 700px;
 }
 .dw-input-output {
-	position: relative;
+  position: relative;
 }
 .dw-input-output pre {
 	max-width: none;

@@ -58,7 +58,7 @@ def db_update_input(article, name, user, owner, val):
 class InputConsumer(AsyncJsonWebsocketConsumer):
     async def connect(self, *args, **kwargs):
         self.user = self.scope['user']
-        if self.user.is_authenticated == False:
+        if not self.user.is_authenticated:
             await self.close()
             return
 
@@ -74,6 +74,7 @@ class InputConsumer(AsyncJsonWebsocketConsumer):
 
         self.path = pathlib.Path(qs['path'][0])
         self.preview = preview_re.match(str(self.path))
+        self.dummy = dict()
 
         if self.preview:
             await self.accept()
@@ -109,7 +110,7 @@ class InputConsumer(AsyncJsonWebsocketConsumer):
         try:
             async with self.stream.stream() as s:
                 async for msg in s:
-                    logger.debug(f"{self.user}@{self.path}: send {{:.60s}} ...".format(' '.join(str(msg).split())))
+                    logger.debug(f"{self.user}@{self.path}: send {{:.80s}} ...".format(' '.join(str(msg).split())))
                     await self.send_json(msg)
         except asyncio.CancelledError:
             pass
@@ -140,10 +141,28 @@ class InputConsumer(AsyncJsonWebsocketConsumer):
 
         typ = field['args'].get('type', 'str') if field['args'] else 'str'
 
+        owner = None
+        if 'owner' in field['args']:
+            o = field['args']['owner']
+
+            if type(o) == str:
+                owner = await misc.str_to_user(owner)
+
+            elif type(o) == pathlib.PosixPath:
+                v = self.dummy.get(str(o))
+                if v:
+                    owner = await misc.str_to_user(v['val'])
+
+
+        if owner:
+            logger.debug(f"get {field['name']}({idx}): {owner}@{typ} {val}")
+        else:
+            logger.debug(f"get {field['name']}({idx}): {typ} {val}")
+
         # verify files input
-        if typ in ['file', 'files']:
-            try:
-                for i,x in enumerate(val):
+        try:
+            if typ in ['file', 'files']:
+                for i, x in enumerate(val):
                     buf = base64.b64decode(x['content'], validate=True)
                     m = magic.detect_from_content(buf)
 
@@ -154,11 +173,20 @@ class InputConsumer(AsyncJsonWebsocketConsumer):
                             logger.warning(f"{self.user}@{self.path}: different mimetype ({val[i]['type']} != {m.mime_type})")
                             val[i]['type'] = m.mime_type
 
-            except Exception as e:
-                logger.warning(f"{self.user}@{self.path}: broken request - {e}")
-                return
+            elif typ in ['select']:
+                val = field['args']['values'][int(val)]
 
-        await db_update_input(self.md.article, field['name'], self.user, owner, { 'type': typ, 'val': val })
+        except Exception as e:
+            logger.warning(f"{self.user}@{self.path}: broken request - {e}")
+            return
+
+
+        if 'dummy' in field['args'] and field['args']['dummy'] == 1:
+            self.dummy[field['name']] = {'type': typ, 'val': val}
+        else:
+            await db_update_input(self.md.article, field['name'], self.user,
+                                  self.user if owner is None else owner,
+                                  {'type': typ, 'val': val})
 
         async with field['cv']:
             field['cv'].notify_all()

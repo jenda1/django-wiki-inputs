@@ -16,19 +16,23 @@ function receiveMessage(msg) {
   var fid = Number(msg['id']);
 
   if (type == 'input') {
-    if (msg['val'] === null) {
-      $('[data-id=' + fid + '].dw-input')
-        .prop('disabled', Boolean(msg['disabled']));
+    var e = $('[data-id=' + fid + '].dw-input');
+
+    e.prop('disabled', Boolean(msg['disabled']));
+    if (msg['val'] !== null) {
+      e.val(String(msg['val']))
+    }
+
+    if (msg['owner'] === null) {
+      e.removeClass('dw-not-owner');
     } else {
-      $('[data-id=' + fid + '].dw-input')
-        .val(String(msg['val']))
-        .prop('disabled', Boolean(msg['disabled']));
+      e.addClass('dw-not-owner');
     }
   }
 
   if (type == 'display') {
     $('span[data-id=' + fid + '].dw-input')
-      .html(msg['val'] ? msg['val'] : "");
+      .html(msg['val'] ? msg['val']['val'] : "");
   }
 }
 

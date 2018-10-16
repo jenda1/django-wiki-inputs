@@ -3,8 +3,9 @@ from channels.db import database_sync_to_async
 from aiostream import stream, core
 import logging
 import json
+import pathlib
+import os
 
-from . import models
 from . import misc
 from . import fn
 
@@ -17,19 +18,6 @@ logger = logging.getLogger(__name__)
 def db_is_user_in_group(user, grp):
     return user.groups.filter(name=grp.name).exists()
 
-
-
-@database_sync_to_async
-def db_get_input_grp(article, name, grp):
-    if grp is True:
-        return models.Input.objects.filter(
-            article=article,
-            name=name).order_by('article', 'name', 'owner', '-created').distinct('article', 'name', 'owner')
-    else:
-        return models.Input.objects.filter(
-            article=article,
-            owner__group=grp,
-            name=name).order_by('article', 'name', 'owner', '-created').distinct('article', 'name', 'owner')
 
 
 @database_sync_to_async
@@ -65,15 +53,32 @@ async def can_read_usr(md, inp, user):
 
 
 @core.operator  # NOQA
-async def read_field(md, name, user, filt):
-    for inp in md.input_fields:
-        if inp['cmd'] == 'input' and inp['name'] == name:
-            break
+async def read_field(ic, user, arg):
+    p = pathlib.Path(os.path.normpath(os.path.join(ic.path, arg['path'])))
+    if p.parent == ic.path:
+        md = ic.md
     else:
-        yield md.source_fields.get(name, None)
+        md = await misc.markdown_factory.get_markdown(p.parent, ic.user)
+
+        if md is None:
+            logger.debug(f"{ic.user}@{ic.path}: article {p.parent} does not exits or user has no read permission")
+            yield None
+            return
+
+    if p.name in md.source_fields:
+        yield md.source_fields.get(p.name)
         return
 
-    if not (filt is None or await can_read_usr(md, inp, user)):
+    for inp in md.input_fields:
+        if inp['cmd'] == 'input' and inp['name'] == p.name:
+            break
+    else:
+        yield None
+        return
+
+    filt = arg.get('filter')
+
+    if not (filt is None or await can_read_usr(md, inp, ic.user)):
         yield "🛇"
         return
 
@@ -94,8 +99,11 @@ async def read_field(md, name, user, filt):
 
     last = None
     while True:
-        if isinstance(f, User):
-            db_val = await misc.db_get_input(md.article, name, f)
+        if ic.md == md and p.name in ic.dummy:
+            yield ic.dummy[p.name]
+
+        elif isinstance(f, User):
+            db_val = await misc.db_get_input(md.article, p.name, f)
             if db_val is None:
                 yield None
 
@@ -104,7 +112,7 @@ async def read_field(md, name, user, filt):
                 yield json.loads(db_val.val)
 
         elif f is True or isinstance(f, Group):
-            db_vals = await db_get_input_grp(md.article, name, f)
+            db_vals = await misc.db_get_input_grp(md.article, p.name, f)
 
             curr = set([x.pk for x in db_vals])
             if last is None or last != curr:
@@ -116,29 +124,24 @@ async def read_field(md, name, user, filt):
             await inp['cv'].wait()
 
 
+async def arg_stream(ic, user, arg):
+    if type(arg) in [int, str, float]:
+        return stream.just({'type': type(arg), 'val': arg})
+
+    elif type(arg) is dict and 'fname' in arg:
+        return display_fn(ic, arg)
+
+    elif type(arg) is dict and 'path' in arg:
+        return read_field(ic, user, arg)
+
+    else:
+        logger.warning(f"{ic.user}@{ic.path}: argument {arg}: unknow type")
+        return stream.empty()
+
+
 @core.operator
-async def args_stream(user, path, args):
-    out = list()
-
-    for arg in args:
-        if type(arg) in [int, str, float]:
-            out.append(stream.just(arg))
-
-        elif type(arg) is dict and 'fname' in arg:
-            out.append(display_fn(user, path, arg))
-
-        elif type(arg) is dict and 'path' in arg:
-            p = (path/arg['path']).resolve()
-            md = await misc.markdown_factory.get_markdown(p.parent, user)
-            if md is None:
-                logger.debug(f"{user}@{path}: article {p.parent} does not exits or user has no read permission")
-                out.append(stream.empty())
-            else:
-                out.append(read_field(md, p.name, user, arg.get('filter')))
-
-        else:
-            logger.warning(f"{user}@{path}: argument {arg}: unknow type")
-            out.append(stream.empty)
+async def args_stream(ic, args):
+    out = [await arg_stream(ic, ic.user, arg) for arg in args]
 
     s = stream.ziplatest(*out)
     async with core.streamcontext(s) as streamer:
@@ -147,19 +150,19 @@ async def args_stream(user, path, args):
 
 
 @core.operator
-async def display_fn(user, path, field):
+async def display_fn(ic, field):
     # args = await args_to_stream(user, path, field['args'])
 
     if field['fname'] is None:
-        source = fn.pprint.pprint(user, path, field['args'])
+        source = fn.pprint.pprint(ic, field['args'])
     else:
         try:
             m = getattr(fn, field['fname'])
             fnc = getattr(m, field['fname'])
 
-            source = fnc(user, path, field['args'])
+            source = fnc(ic, field['args'])
         except AttributeError:
-            logger.warning(f"{user}@{path}: unknown display method {field['fname']}")
+            logger.warning(f"{ic.user}@{ic.path}: unknown display method {field['fname']}")
             yield "\u26A0"
             return
 
@@ -169,14 +172,14 @@ async def display_fn(user, path, field):
                 yield item
     finally:
         if field['fname']:
-            logger.debug(f"{user}@{path}: finalize function {field['fname']}")
+            logger.debug(f"{ic.user}@{ic.path}: finalize function {field['fname']}")
         else:
-            logger.debug(f"{user}@{path}: finalize function pprint")
+            logger.debug(f"{ic.user}@{ic.path}: finalize function pprint")
 
 
 @core.operator
 async def display(ic, idx):
-    source = display_fn(ic.user, ic.path, ic.md.input_fields[idx]['fn'])
+    source = display_fn(ic, ic.md.input_fields[idx]['fn'])
 
     async with core.streamcontext(source) as streamer:
         async for item in streamer:
@@ -186,21 +189,38 @@ async def display(ic, idx):
 @core.operator
 async def input(ic, idx):
     field = ic.md.input_fields[idx]
-
     typ = field['args'].get('type', 'str') if field['args'] else 'str'
-    db_val = await misc.db_get_input(ic.md.article, field['name'], ic.user)
 
-    if db_val is None:
-        val = None
-    else:
-        val=json.loads(db_val.val) if db_val else None
+    owner = ic.user
+    val = None
 
-        if typ != val['type']:
-            logger.warning(f"field type mismatch: {typ} != {val['type']}")
+    while True:
+        src = [await arg_stream(ic, owner, {'path': field['name']})]
 
-        if typ in ['file', 'files']:
-            val = None
-        else:
-            val = str(val['val'])
+        if 'owner' in field['args']:
+            src.append(await arg_stream(ic, ic.user, {'path': field['args']['owner']}))
 
-    yield dict(type='input', id=idx, disabled=False, val=val)
+        s = stream.ziplatest(*src)
+        async with core.streamcontext(s) as streamer:
+            async for i in streamer:
+                if 'owner' in field['args']:
+                    if i[1] is None:
+                        o = ic.user
+                    else:
+                        o = await misc.str_to_user(i[1]['val'])
+                        o = o if o else ic.user
+
+                    if o != owner:
+                        owner = o
+                        break
+
+                if i[0] is not None and typ != i[0]['type']:
+                    logger.warning(f"field type mismatch: {typ} != {i[0]['type']}")
+
+                logger.debug(f"aaaaa {i[0]}")
+                if typ in ['file', 'files', 'select']:
+                    val = None
+                else:
+                    val = "" if i[0] is None else str(i[0]['val'])
+
+                yield dict(type='input', id=idx, disabled=False, val=val, owner=None if ic.user == owner else owner.username)
