@@ -85,7 +85,19 @@ function sendUpdate(e) {
 }
 
 
-$('input[data-id].dw-input, textarea[data-id].dw-input').on('input', function() {
+$('input[data-id].dw-input,textarea[data-id].dw-input,select[data-id].dw-input').change(function() {
+    var e = $(this);
+
+    if (e.data('send_update')) {
+        clearTimeout(e.data('send_update'));
+        e.removeData('send_update');
+    }
+
+    sendUpdate(e);
+});
+
+
+$('input[data-id].dw-input,textarea[data-id].dw-input,select[data-id].dw-input').on('input', function() {
     var e = $(this);
 
     if (e.data('send_update')) {
@@ -98,12 +110,4 @@ $('input[data-id].dw-input, textarea[data-id].dw-input').on('input', function() 
       sendUpdate(e);
     }, 10000));
 
-    e.change(function(ev) {
-        if (e.data('send_update')) {
-            clearTimeout(e.data('send_update'));
-            e.removeData('send_update');
-        }
-
-        sendUpdate(e);
-    });
 });

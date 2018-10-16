@@ -41,10 +41,12 @@ class InputsPlugin(BasePlugin):
 
     markdown_extensions = [InputExtension(), SourceExtension()]
 
-    html_whitelist = ['input', 'textarea', 'span', 'kbd']
+    html_whitelist = ['input', 'textarea', 'select', 'option', 'span', 'kbd']
     html_attributes = {
         'input': ['data-id', 'data-user', 'value', 'class', 'id', 'type', 'disabled', 'multiple'],
         'textarea': ['data-id', 'class', 'id', 'type', 'disabled', 'multiple', 'rows', 'cols'],
+        'select': ['data-id', 'class'],
+        'option': ['value'],
         'span': ['data-id', 'data-listen', 'class', 'id'],
         'kbd': ['class'],
     }

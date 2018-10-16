@@ -19,6 +19,12 @@
           rows="4"
           cols="40"
           disabled></textarea>
+{% elif args.type == 'select' %}
+<select class="form-control dw-input{% if args.inline %} dw-input-inline{% endif %}" data-id="{{id}}">
+    {% for val in args.values %}
+    <option value="{{forloop.counter0}}">{{val}}</option>
+    {% endfor %}
+</select>
 {% else %}
 {{args.type}}???
 {% endif %}

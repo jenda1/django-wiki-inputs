@@ -3,12 +3,8 @@ from __future__ import absolute_import, unicode_literals
 from django import template
 from django.template.defaultfilters import stringfilter
 from django.utils.safestring import mark_safe
-from django.contrib.auth.models import User
-import pprint
 import uuid
-import json
 import base64
-from django_wiki_inputs import models
 
 import pygments
 
@@ -36,4 +32,3 @@ def codehilite(value, arg):
 @stringfilter
 def b64decode(val):
     return base64.b64decode(val).decode('utf-8')
-
