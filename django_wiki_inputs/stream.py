@@ -223,4 +223,4 @@ async def input(ic, idx):
                 else:
                     val = "" if i[0] is None else str(i[0]['val'])
 
-                yield dict(type='input', id=idx, disabled=False, val=val, owner=None if ic.user == owner else owner.username)
+                yield dict(type='input', id=idx, disabled=ic.md.article.current_revision.locked, val=val, owner=None if ic.user == owner else owner.username)

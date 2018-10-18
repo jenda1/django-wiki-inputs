@@ -28,6 +28,6 @@ async def pprint(ic, args):
             if len(out) == 0:
                 yield None
             elif len(out) == 1:
-                yield out[0]
+                yield {'type': 'html', 'val': out[0]}
             else:
-                yield "<table><tr><td>" + "</td><td>".join(out) + "</td></tr></table>"
+                yield {'type': 'html', 'val': "<table><tr><td>" + "</td><td>".join(out) + "</td></tr></table>"}
