@@ -28,9 +28,9 @@ ppath = pp.Group(
     "." ^ (pp.Optional("/") + pp.ZeroOrMore((pfname ^ "..") + pp.Literal('/').suppress()).leaveWhitespace() + pfname.leaveWhitespace())
 ).setParseAction(lambda t: Path(*t[0]))
 
-ppath_full = pp.Group(
-    ppath.setResultsName('path') + pp.Optional(pp.Literal('@').suppress() + (
-        (pp.Literal("_") + pident.setResultsName('grp') + pp.Literal("_")) ^ pident.setResultsName('usr'))).setResultsName('filter'))
+#ppath_full = pp.Group(
+#    ppath.setResultsName('path') + pp.Optional(pp.Literal('@').suppress() + (
+#        (pp.Literal("_") + pident.setResultsName('grp') + pp.Literal("_")) ^ pident.setResultsName('usr'))).setResultsName('filter'))
 
 
 @database_sync_to_async
@@ -74,20 +74,6 @@ def db_get_input(article, name, user):
         article=article,
         owner=user,
         name=name).last()
-
-
-@database_sync_to_async
-def db_get_input_grp(article, name, grp):
-    if grp is True:
-        return models.Input.objects.filter(
-            article=article,
-            name=name).order_by('article', 'name', 'owner', '-created').distinct('article', 'name', 'owner')
-    else:
-        return models.Input.objects.filter(
-            article=article,
-            owner__group=grp,
-            name=name).order_by('article', 'name', 'owner', '-created').distinct('article', 'name', 'owner')
-
 
 
 

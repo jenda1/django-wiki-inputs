@@ -1,4 +1,6 @@
+from django.contrib.auth.models import User, Group
 from aiostream import core
+from collections import defaultdict
 from django.template.loader import render_to_string
 import ipdb  # NOQA
 
@@ -11,23 +13,58 @@ async def pprint(ic, args):
 
     async with core.streamcontext(source) as streamer:
         async for item in streamer:
-            out = list()
+            data = item['args']
 
-            for i in item['args']:
-                if type(i) in [int, str, float]:
-                    val = {'type': type(i), 'val': i}
+            keys = list()
+            vals = dict()
 
-                elif type(i) is dict and 'type' in i:
-                    val = i
+            for i,val in enumerate(data):
+                if val is None:
+                    continue
+
+                if val['type'] in ['int', 'str', 'float']:
+                    if None not in keys:
+                        keys.insert(0, None)
+                        vals[None] = [None] * len(data)
+
+                    vals[None][i] = render_to_string(f"wiki/plugins/inputs/pprint.html", context=val)
+
+                elif val['type'] == 'user-list':
+                    for u,v in val['val'].items():
+                        if u not in keys:
+                            keys.append(u)
+                            vals[u] = [None] * len(data)
+
+                        vals[u][i] = render_to_string(f"wiki/plugins/inputs/pprint.html", context=v)
 
                 else:
-                    val = {'type': type(i), 'val': i}
+                    logger.error(i)
 
-                out.append(render_to_string(f"wiki/plugins/inputs/pprint.html", context=val))
 
-            if len(out) == 0:
+            if len(keys) == 0:
                 yield None
-            elif len(out) == 1:
-                yield {'type': 'html', 'val': out[0]}
+                continue
+
+            if len(keys) == 1 and keys[0] == 'None':
+                html = " ".join(vals[keys[0]])
+
             else:
-                yield {'type': 'html', 'val': "<table><tr><td>" + "</td><td>".join(out) + "</td></tr></table>"}
+                html = "<table>"
+
+                for k in keys:
+                    html += "<tr><th>"
+                    if k is None:
+                        html += "&nbsp;"
+                    elif isinstance(k, User):
+                        html += f"{k.first_name} {k.last_name}"
+                    else:
+                        html += str(k)
+                    html += "</th>"
+                
+                    for v in vals[k]:
+                        html += f"<td>{v!s}</td>"
+
+                    html += "</tr>"
+                html += "</table>"
+
+            yield {'type': 'html', 'val': html}

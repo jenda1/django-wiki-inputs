@@ -51,74 +51,53 @@ async def can_read_usr(md, inp, user):
     return can_read == user.username or can_read == user.email
 
 
+async def field_src(ic, path):
+    p = pathlib.Path(os.path.normpath(os.path.join(ic.path, str(path))))
+
+    md = await misc.markdown_factory.get_markdown(p.parent, ic.user)
+    if md:
+        return (md, p.name)
+
+    logger.debug(f"{ic.user}@{path}: article {p.parent} does not exits or user has no read permission")
+    
+
 
 @core.operator  # NOQA
-async def read_field(ic, user, arg):
-    p = pathlib.Path(os.path.normpath(os.path.join(ic.path, arg['path'])))
-    if p.parent == ic.path:
-        md = ic.md
-    else:
-        md = await misc.markdown_factory.get_markdown(p.parent, ic.user)
+async def read_field(ic, user, src):
+    if src == None:
+        yield None
+        return
 
-        if md is None:
-            logger.debug(f"{ic.user}@{ic.path}: article {p.parent} does not exits or user has no read permission")
-            yield None
-            return
+    md = src[0]
+    name = src[1]
 
-    if p.name in md.source_fields:
-        yield md.source_fields.get(p.name)
+    if name in md.source_fields:
+        yield md.source_fields.get(name)
         return
 
     for inp in md.input_fields:
-        if inp['cmd'] == 'input' and inp['name'] == p.name:
+        if inp['cmd'] == 'input' and inp['name'] == name:
             break
     else:
         yield None
         return
 
-    filt = arg.get('filter')
-
-    if not (filt is None or await can_read_usr(md, inp, ic.user)):
+    if not await can_read_usr(md, inp, ic.user):
         yield "🛇"
-        return
-
-    f = user
-
-    if filt and 'usr' in filt:
-        f = await misc.db_get_user(filt['usr'])
-
-    elif filt and 'grp' in filt and filt['grp'] == 'all':
-        f = True
-
-    elif filt and 'grp' in filt:
-        f = await misc.db_get_group(filt['grp'])
-
-    if f is None:
-        yield None
         return
 
     last = None
     while True:
-        if ic.md == md and p.name in ic.dummy:
-            yield ic.dummy[p.name]
+        if ic.md == md and name in ic.dummy:
+            yield ic.dummy[name]
 
-        elif isinstance(f, User):
-            db_val = await misc.db_get_input(md.article, p.name, f)
-            if db_val is None:
-                yield None
+        db_val = await misc.db_get_input(md.article, name, user)
+        if db_val is None:
+            yield None
 
-            elif last is None or last != db_val.pk:
-                last = db_val.pk
-                yield json.loads(db_val.val)
-
-        elif f is True or isinstance(f, Group):
-            db_vals = await misc.db_get_input_grp(md.article, p.name, f)
-
-            curr = set([x.pk for x in db_vals])
-            if last is None or last != curr:
-                last = curr
-                val = {i.owner: json.loads(i.val) for i in db_vals}
-                yield {'type': 'user-list', 'val': val}
+        elif last is None or last != db_val.pk:
+            last = db_val.pk
+            yield json.loads(db_val.val)
 
         async with inp['cv']:
             await inp['cv'].wait()
@@ -126,13 +105,13 @@ async def read_field(ic, user, arg):
 
 async def arg_stream(ic, user, arg):
     if type(arg) in [int, str, float]:
-        return stream.just({'type': type(arg), 'val': arg})
+        return stream.just({'type': type(arg).__name__, 'val': arg})
+
+    elif isinstance(arg, pathlib.Path):
+        return read_field(ic, user, await field_src(ic, arg))
 
     elif type(arg) is dict and 'fname' in arg:
         return display_fn(ic, arg)
-
-    elif type(arg) is dict and 'path' in arg:
-        return read_field(ic, user, arg)
 
     else:
         logger.warning(f"{ic.user}@{ic.path}: argument {arg}: unknow type")
@@ -195,10 +174,10 @@ async def input(ic, idx):
     val = None
 
     while True:
-        src = [await arg_stream(ic, owner, {'path': field['name']})]
+        src = [await arg_stream(ic, owner, pathlib.Path(field['name']))]
 
         if 'owner' in field['args']:
-            src.append(await arg_stream(ic, ic.user, {'path': field['args']['owner']}))
+            src.append(await arg_stream(ic, ic.user, pathlib.Path(field['args']['owner'])))
 
         s = stream.ziplatest(*src)
         async with core.streamcontext(s) as streamer:
@@ -214,10 +193,11 @@ async def input(ic, idx):
                         owner = o
                         break
 
+                if i[0] is not None and 'type' not in i[0]:
+                    logger.warning(f"field type errro: {i[0]}")
                 if i[0] is not None and typ != i[0]['type']:
                     logger.warning(f"field type mismatch: {typ} != {i[0]['type']}")
 
-                logger.debug(f"aaaaa {i[0]}")
                 if typ in ['file', 'files', 'select']:
                     val = None
                 else:

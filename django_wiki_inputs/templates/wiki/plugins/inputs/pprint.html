@@ -26,16 +26,6 @@
   </div>
   {% endfor %}
 </div>
- {% elif type == 'user-list' %}
-  <table>
-    {% for k,v in val.items %}
-    <tr>
-      <th>{{k.first_name}} {{k.last_name}}</th>
-      <td>{% include "wiki/plugins/inputs/pprint.html" with type=v.type val=v.val %}</td>
-    </tr>
-    {% endfor %}
-  </div>
 {% else %}
 ???{{type}}???
 {% endif %}
-
