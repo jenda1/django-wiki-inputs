@@ -26,9 +26,7 @@ pexpr = pp.Forward()
 pexpr << misc.pident.setResultsName('fname') + pp.Literal('(').suppress() + pp.delimitedList(misc.pint ^ misc.pfloat ^ misc.pstr ^ misc.ppath ^ pp.Group(pexpr), delim=",").setResultsName('args') + pp.Literal(')').suppress()
 
 pdisplay = (pp.Literal('[').suppress() +
-            pp.CaselessKeyword('display').setResultsName('cmd') + (
-                misc.ppath.setResultsName('fn').addParseAction(lambda t: dict(fname=None, args=[t.asDict()['fn']])) ^
-                pp.Group(pexpr).setResultsName('fn')) +
+            pp.CaselessKeyword('display').setResultsName('cmd') + (misc.ppath.setResultsName('path') ^ pp.Group(pexpr).setResultsName('fn')) +
             pp.Literal(']').suppress())
 
 pparser = pinput ^ pdisplay

@@ -82,8 +82,8 @@ async def read_field(ic, user, src):
         yield None
         return
 
-    if not await can_read_usr(md, inp, ic.user):
-        yield "🛇"
+    if ic.user.pk != user.pk and not await can_read_usr(md, inp, ic.user):
+        yield {'type': 'error', 'val':"🛇"}
         return
 
     last = None
@@ -130,20 +130,15 @@ async def args_stream(ic, args):
 
 @core.operator
 async def display_fn(ic, field):
-    # args = await args_to_stream(user, path, field['args'])
+    try:
+        m = getattr(fn, field['fname'])
+        fnc = getattr(m, field['fname'])
 
-    if field['fname'] is None:
-        source = fn.pprint.pprint(ic, field['args'])
-    else:
-        try:
-            m = getattr(fn, field['fname'])
-            fnc = getattr(m, field['fname'])
-
-            source = fnc(ic, field['args'])
-        except AttributeError:
-            logger.warning(f"{ic.user}@{ic.path}: unknown display method {field['fname']}")
-            yield "\u26A0"
-            return
+        source = fnc(ic, field['args'])
+    except AttributeError:
+        logger.warning(f"{ic.user}@{ic.path}: unknown display method {field['fname']}")
+        yield "\u26A0"
+        return
 
     try:
         async with core.streamcontext(source) as streamer:
@@ -158,7 +153,11 @@ async def display_fn(ic, field):
 
 @core.operator
 async def display(ic, idx):
-    source = display_fn(ic, ic.md.input_fields[idx]['fn'])
+    field = ic.md.input_fields[idx]
+    if 'fn' in field:
+        source = display_fn(ic, {'fname':'pprint', 'args': [field['fn']]})
+    elif 'path' in field:
+        source = display_fn(ic, {'fname':'pprint', 'args': [field['path']]})
 
     async with core.streamcontext(source) as streamer:
         async for item in streamer:
@@ -193,10 +192,11 @@ async def input(ic, idx):
                         owner = o
                         break
 
-                if i[0] is not None and 'type' not in i[0]:
-                    logger.warning(f"field type errro: {i[0]}")
-                if i[0] is not None and typ != i[0]['type']:
-                    logger.warning(f"field type mismatch: {typ} != {i[0]['type']}")
+                if i[0] is not None:
+                    if 'type' not in i[0]:
+                        logger.warning(f"field type errro: {i[0]}")
+                    elif typ != i[0]['type']:
+                        logger.warning(f"field type mismatch: {typ} != {i[0]['type']}")
 
                 if typ in ['file', 'files', 'select']:
                     val = None

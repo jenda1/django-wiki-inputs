@@ -51,13 +51,13 @@ async def get(ic, args):
         yield {'type':'error', 'val':"⚠ get() first argument must be existing input ⚠"}
         return
 
-    users = set() 
+    users = set()
 
     while True:
         src = [my_stream.read_field(ic, x, field_src) for x in users]
         src += [await my_stream.arg_stream(ic, ic.user, x) for x in args[1:]]
 
-        s = stream.ziplatest(*src)
+        s = stream.ziplatest(*src, partial=False)
         async with core.streamcontext(s) as streamer:
             async for i in streamer:
                 if None in i[len(users):]:
@@ -80,7 +80,7 @@ async def get(ic, args):
                 if users != users_new:
                     users = users_new
                     break
-                
+
                 yield {'type': 'user-list', 'val': dict(zip(users, i[:len(users)]))}
 
             else:

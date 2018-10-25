@@ -2,9 +2,12 @@ from django.contrib.auth.models import User, Group
 from aiostream import core
 from collections import defaultdict
 from django.template.loader import render_to_string
+import logging
 import ipdb  # NOQA
 
 from .. import stream
+
+logger = logging.getLogger(__name__)
 
 
 @core.operator
@@ -22,7 +25,10 @@ async def pprint(ic, args):
                 if val is None:
                     continue
 
-                if val['type'] in ['int', 'str', 'float']:
+                if val['type'] in ['html']:
+                    vals[None][i] = val['val']
+
+                elif val['type'] in ['int', 'str', 'float', 'files']:
                     if None not in keys:
                         keys.insert(0, None)
                         vals[None] = [None] * len(data)
@@ -38,7 +44,7 @@ async def pprint(ic, args):
                         vals[u][i] = render_to_string(f"wiki/plugins/inputs/pprint.html", context=v)
 
                 else:
-                    logger.error(i)
+                    logger.error(val)
 
 
             if len(keys) == 0:
