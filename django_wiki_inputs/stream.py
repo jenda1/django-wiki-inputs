@@ -59,7 +59,7 @@ async def field_src(ic, path):
         return (md, p.name)
 
     logger.debug(f"{ic.user}@{path}: article {p.parent} does not exits or user has no read permission")
-    
+
 
 
 @core.operator  # NOQA
@@ -90,14 +90,14 @@ async def read_field(ic, user, src):
     while True:
         if ic.md == md and name in ic.dummy:
             yield ic.dummy[name]
+        else:
+            db_val = await misc.db_get_input(md.article, name, user)
+            if db_val is None:
+                yield None
 
-        db_val = await misc.db_get_input(md.article, name, user)
-        if db_val is None:
-            yield None
-
-        elif last is None or last != db_val.pk:
-            last = db_val.pk
-            yield json.loads(db_val.val)
+            elif last is None or last != db_val.pk:
+                last = db_val.pk
+                yield json.loads(db_val.val)
 
         async with inp['cv']:
             await inp['cv'].wait()
@@ -183,7 +183,7 @@ async def input(ic, idx):
             async for i in streamer:
                 if 'owner' in field['args']:
                     if i[1] is None:
-                        o = ic.user
+                        continue
                     else:
                         o = await misc.str_to_user(i[1]['val'])
                         o = o if o else ic.user

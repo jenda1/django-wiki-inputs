@@ -14,24 +14,6 @@ import ipdb # NOQA
 
 logger = logging.getLogger(__name__)
 
-pp.ParserElement.setDefaultWhitespaceChars(' \t')
-
-# FIXME: pident pattern should not allow '_' at the end, the names are used internally
-pident = pp.Combine(pp.Word(pp.alphas, pp.alphas+pp.nums) + pp.ZeroOrMore("_" + pp.Word(pp.alphas+pp.nums)))
-pfname = pp.Word(pp.alphas+pp.nums, pp.alphas+pp.nums+"-_.")
-
-pint = pp.Combine(pp.Optional('-')+pp.Word(pp.nums)).setParseAction(lambda i: int(i[0]))
-pfloat = pp.Combine(pp.Optional('-')+pp.Word(pp.nums)+pp.Literal('.')+pp.Word(pp.nums)).setParseAction(lambda f: float(f[0]))
-pstr = pp.quotedString.addParseAction(pp.removeQuotes).addParseAction(lambda s: str(s[0]))
-
-ppath = pp.Group(
-    "." ^ (pp.Optional("/") + pp.ZeroOrMore((pfname ^ "..") + pp.Literal('/').suppress()).leaveWhitespace() + pfname.leaveWhitespace())
-).setParseAction(lambda t: Path(*t[0]))
-
-#ppath_full = pp.Group(
-#    ppath.setResultsName('path') + pp.Optional(pp.Literal('@').suppress() + (
-#        (pp.Literal("_") + pident.setResultsName('grp') + pp.Literal("_")) ^ pident.setResultsName('usr'))).setResultsName('filter'))
-
 
 @database_sync_to_async
 def db_get_article(path):
@@ -99,6 +81,7 @@ class _MarkdownFactory(object):
     def __init__(self):
         self.cache = dict()
         self._input_cv = defaultdict(dict)
+        self.render_lock = asyncio.Lock()
 
     async def get_markdown(self, path, user):
         article = await db_get_article(path)
@@ -110,28 +93,29 @@ class _MarkdownFactory(object):
             logger.debug(f"{user}@{path}: read forbidden")
             return None
 
-        try:
-            md = self.cache[article.pk]
-            if md.article_revision_pk == article.current_revision.pk:
-                return md
-        except KeyError:
-            pass
+        with self.render_lock:
+            try:
+                md = self.cache[article.pk]
+                if md.article_revision_pk == article.current_revision.pk:
+                    return md
+            except KeyError:
+                pass
 
-        logger.debug(f"{user}@{path}: render current version")
-        md = await db_get_article_markdown(article)
+            logger.debug(f"{user}@{path}: render current version")
+            md = await db_get_article_markdown(article)
 
-        for inp in md.input_fields:
-            if inp['cmd'] == 'input':
-                try:
-                    inp['cv'] = self._input_cv[article.pk][inp['name']]
-                except KeyError:
-                    cv = asyncio.Condition()
-                    self._input_cv[article.pk][inp['name']] = cv
-                    inp['cv'] = cv
+            for inp in md.input_fields:
+                if inp['cmd'] == 'input':
+                    try:
+                        inp['cv'] = self._input_cv[article.pk][inp['name']]
+                    except KeyError:
+                        cv = asyncio.Condition()
+                        self._input_cv[article.pk][inp['name']] = cv
+                        inp['cv'] = cv
 
-        self.cache[article.pk] = md
+            self.cache[article.pk] = md
 
-        return md
+            return md
 
 
 markdown_factory = _MarkdownFactory()

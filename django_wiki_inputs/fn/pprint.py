@@ -26,6 +26,10 @@ async def pprint(ic, args):
                     continue
 
                 if val['type'] in ['html']:
+                    if None not in keys:
+                        keys.insert(0, None)
+                        vals[None] = [None] * len(data)
+
                     vals[None][i] = val['val']
 
                 elif val['type'] in ['int', 'str', 'float', 'files']:
@@ -51,7 +55,7 @@ async def pprint(ic, args):
                 yield None
                 continue
 
-            if len(keys) == 1 and keys[0] == 'None':
+            if len(keys) == 1 and keys[0] is None:
                 html = " ".join(vals[keys[0]])
 
             else:
@@ -66,7 +70,7 @@ async def pprint(ic, args):
                     else:
                         html += str(k)
                     html += "</th>"
-                
+
                     for v in vals[k]:
                         html += f"<td>{v!s}</td>"
 

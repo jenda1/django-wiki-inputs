@@ -11,29 +11,21 @@ import ipdb  # NOQA
 logger = logging.getLogger(__name__)
 
 
-@database_sync_to_async
-def db_get_input_users(article, name, flt):
-    if flt == 'all':
-        return models.Input.objects.filter(
-            article=article,
-            name=name).order_by('article', 'name', 'owner', '-created').distinct('article', 'name', 'owner')
-    else:
-        return models.Input.objects.filter(
-            article=article,
-            owner__group__name=flt,
-            name=name).order_by('article', 'name', 'owner', '-created').distinct('article', 'name', 'owner')
-
-
-
 filt_re = re.compile(r"^_(.+)_$")
 
-async def get_users(article, name, flt):
-    m = filt_re.match(flt)
+@database_sync_to_async
+def db_get_input_users(article, name, flt):
+    q = models.Input.objects.filter(article=article, name=name)
+    if flt == '_all_':
+        pass
+    else:
+        m = filt_re.match(flt)
+        if m:
+            q = q.filter(owner__group__name=m.group(1))
+        else:
+            q = q.filter(owner__username=flt).first()
 
-    if not m:
-        return [await misc.db_get_user(flt)]
-
-    return [x.owner for x in await db_get_input_users(article, name, m.group(1))]
+    return q.order_by('article', 'name', 'owner', '-created').distinct('article', 'name', 'owner')
 
 
 @core.operator
@@ -54,6 +46,7 @@ async def get(ic, args):
     users = set()
 
     while True:
+        logger.er
         src = [my_stream.read_field(ic, x, field_src) for x in users]
         src += [await my_stream.arg_stream(ic, ic.user, x) for x in args[1:]]
 
@@ -69,11 +62,11 @@ async def get(ic, args):
                         logger.warning(f"??? {x}")
                         continue
 
-                    for u in await get_users(field_src[0].article, field_src[1], x['val']):
-                        if u in users_new:
+                    for u in await db_get_input_users(field_src[0].article, field_src[1], x['val']):
+                        if u.owner in users_new:
                             continue
                         if ic.user.pk == field_src[0].article.current_revision.user.pk:
-                            users_new.add(u)
+                            users_new.add(u.owner)
                             continue
                         # FIXME: can_read!!!
 

@@ -2,31 +2,44 @@ from django.contrib.auth.models import User
 import markdown
 from django.template.loader import render_to_string
 import pyparsing as pp
+from pathlib import Path
+import threading
 import ipdb  # NOQA
 import logging
 
 from .. import misc
 
 logger = logging.getLogger(__name__)
+pp.ParserElement.setDefaultWhitespaceChars(' \t')
 
+pident = pp.Combine(pp.Word(pp.alphas, pp.alphas+pp.nums) + pp.ZeroOrMore("_" + pp.Word(pp.alphas+pp.nums)))
+pfname = pp.Word(pp.alphas+pp.nums, pp.alphas+pp.nums+"-_.")
+
+pint = pp.Combine(pp.Optional('-')+pp.Word(pp.nums)).setParseAction(lambda i: int(i[0]))
+pfloat = pp.Combine(pp.Optional('-')+pp.Word(pp.nums)+pp.Literal('.')+pp.Word(pp.nums)).setParseAction(lambda f: float(f[0]))
+pstr = pp.quotedString.setParseAction(lambda s: str(s[0]).strip('"'))
+
+ppath = pp.Group(
+    "." ^ (pp.Optional("/") + pp.ZeroOrMore((pfname ^ "..") + pp.Literal('/').suppress()).leaveWhitespace() + pfname.leaveWhitespace())
+).setParseAction(lambda t: Path(*t[0]))
 
 pmacro = pp.Combine(pp.Literal('_').suppress() + pp.Word(pp.alphas+pp.nums, pp.alphas+pp.nums+"_")).setParseAction(lambda t: dict(macro=t[0].rstrip('_')))
 pinput = (pp.Literal('[').suppress()
           + pp.CaselessKeyword('input').setResultsName('cmd')
-          + misc.pident.setResultsName('name')
+          + pident.setResultsName('name')
           + pp.Dict(
               pp.ZeroOrMore(
                   pp.Group(
-                      misc.pident
+                      pident
                       + pp.Literal('=').suppress()
-                      + (pmacro ^ misc.pint ^ misc.pfloat ^ misc.pstr ^ misc.ppath)))).setResultsName('args')
+                      + (pmacro ^ pint ^ pfloat ^ pstr ^ ppath)))).setResultsName('args')
           + pp.Literal(']').suppress())
 
 pexpr = pp.Forward()
-pexpr << misc.pident.setResultsName('fname') + pp.Literal('(').suppress() + pp.delimitedList(misc.pint ^ misc.pfloat ^ misc.pstr ^ misc.ppath ^ pp.Group(pexpr), delim=",").setResultsName('args') + pp.Literal(')').suppress()
+pexpr << pident.setResultsName('fname') + pp.Literal('(').suppress() + pp.delimitedList(pint ^ pfloat ^ pstr ^ ppath ^ pp.Group(pexpr), delim=",").setResultsName('args') + pp.Literal(')').suppress()
 
 pdisplay = (pp.Literal('[').suppress() +
-            pp.CaselessKeyword('display').setResultsName('cmd') + (misc.ppath.setResultsName('path') ^ pp.Group(pexpr).setResultsName('fn')) +
+            pp.CaselessKeyword('display').setResultsName('cmd') + (ppath.setResultsName('path') ^ pp.Group(pexpr).setResultsName('fn')) +
             pp.Literal(']').suppress())
 
 pparser = pinput ^ pdisplay
@@ -47,8 +60,10 @@ class InputPreprocessor(markdown.preprocessors.Preprocessor):
 
     def __init__(self, *args, **kwargs):
         super(InputPreprocessor, self).__init__(*args, **kwargs)
-        self.input_fields = list()
 
+        # FIXME: pident pattern should not allow '_' at the end, the names are used internally
+
+        self.input_fields = list()
         if self.markdown:
             self.markdown.input_fields = self.input_fields
 
