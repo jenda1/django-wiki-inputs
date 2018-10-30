@@ -93,7 +93,7 @@ class _MarkdownFactory(object):
             logger.debug(f"{user}@{path}: read forbidden")
             return None
 
-        with self.render_lock:
+        async with self.render_lock:
             try:
                 md = self.cache[article.pk]
                 if md.article_revision_pk == article.current_revision.pk:
