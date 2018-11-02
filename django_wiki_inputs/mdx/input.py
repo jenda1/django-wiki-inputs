@@ -86,11 +86,18 @@ class InputPreprocessor(markdown.preprocessors.Preprocessor):
             ctx['id'] = len(self.input_fields)
             ctx['src'] = doc[(start+shift_n+1):(end+shift_n-1)]
 
-            if 'args' in ctx and 'values' in ctx['args']:
-                if type(ctx['args']['values']) == dict and 'macro' in ctx['args']['values']:
-                    ctx['args']['values'] = self.expand_macro(ctx['args']['values']['macro'])
-                elif type(ctx['args']['values']) == str:
-                    ctx['args']['values'] = [x.strip() for x in ctx['args']['values'].split(';')]
+            if ctx['cmd'] == 'input':
+                if 'type' not in ctx['args']:
+                    ctx['args']['type'] = 'text'
+
+                if 'values' in ctx['args']:
+                    if type(ctx['args']['values']) == dict and 'macro' in ctx['args']['values']:
+                        ctx['args']['values'] = self.expand_macro(ctx['args']['values']['macro'])
+                    elif type(ctx['args']['values']) == str:
+                        ctx['args']['values'] = [x.strip() for x in ctx['args']['values'].split(';')]
+
+                    if 'default' not in ctx['args'] and len(ctx['args']['values']):
+                        ctx['args']['default'] = ctx['args']['values'][0]
 
             tmpl = "preview.html" if self.markdown.preview else "input.html"
             html = render_to_string(f"wiki/plugins/inputs/{tmpl}", context=ctx)

@@ -75,33 +75,39 @@ async def read_field(ic, user, src):
         yield md.source_fields.get(name)
         return
 
-    for inp in md.input_fields:
-        if inp['cmd'] == 'input' and inp['name'] == name:
+    for field in md.input_fields:
+        if field['cmd'] == 'input' and field['name'] == name:
             break
     else:
         yield None
         return
 
-    if ic.user.pk != user.pk and not await can_read_usr(md, inp, ic.user):
-        yield {'type': 'error', 'val':"🛇"}
+    if ic.user.pk != user.pk and not await can_read_usr(md, field, ic.user):
+        yield {'type': 'error', 'val':"🚫"}
         return
 
-    last = None
+    last_pk = None
     while True:
-        if ic.md == md and name in ic.dummy:
-            yield ic.dummy[name]
+        default = {
+                'type': field['args']['type'], 
+                'val': field['args'].get('default'),
+                'default': True}
+
+        if field['args'].get('dummy', False):
+            if ic.md == md:
+                yield ic.dummy_val.get(name, default)
         else:
             db_val = await misc.db_get_input(md.article, name, user)
             if db_val is None:
-                yield None
+                yield default
 
-            elif last is None or last != db_val.pk:
-                last = db_val.pk
+            elif last_pk != db_val.pk:
+                last_pk = db_val.pk
                 yield json.loads(db_val.val)
 
-        async with inp['cv']:
-            await inp['cv'].wait()
-
+        async with field['cv']:
+            await field['cv'].wait()
+    
 
 async def arg_stream(ic, user, arg):
     if type(arg) in [int, str, float]:
@@ -167,7 +173,6 @@ async def display(ic, idx):
 @core.operator
 async def input(ic, idx):
     field = ic.md.input_fields[idx]
-    typ = field['args'].get('type', 'str') if field['args'] else 'str'
 
     owner = ic.user
     val = None
@@ -178,7 +183,7 @@ async def input(ic, idx):
         if 'owner' in field['args']:
             src.append(await arg_stream(ic, ic.user, pathlib.Path(field['args']['owner'])))
 
-        s = stream.ziplatest(*src)
+        s = stream.ziplatest(*src, partial=False)
         async with core.streamcontext(s) as streamer:
             async for i in streamer:
                 if 'owner' in field['args']:
@@ -192,15 +197,16 @@ async def input(ic, idx):
                         owner = o
                         break
 
-                if i[0] is not None:
-                    if 'type' not in i[0]:
-                        logger.warning(f"field type errro: {i[0]}")
-                    elif typ != i[0]['type']:
-                        logger.warning(f"field type mismatch: {typ} != {i[0]['type']}")
+                out = dict(type='input', id=idx, disabled=True)
+                out['owner'] = None if ic.user == owner else owner.username
+                out['val'] = '' if i[0]['val'] is None else str(i[0]['val'])
+                out['disabled'] = ic.md.article.current_revision.locked
 
-                if typ in ['file', 'files', 'select']:
-                    val = None
-                else:
-                    val = "" if i[0] is None else str(i[0]['val'])
+                if field['args']['type'] in ['file', 'files', 'select']:
+                    out['val'] = None
 
-                yield dict(type='input', id=idx, disabled=ic.md.article.current_revision.locked, val=val, owner=None if ic.user == owner else owner.username)
+                if field['args']['type'] != i[0]['type']:
+                    logger.warning(f"field type error: {field['args']['type']} != {i[0]['type']}")
+                                
+
+                yield out

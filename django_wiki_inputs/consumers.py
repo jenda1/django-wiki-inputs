@@ -74,7 +74,7 @@ class InputConsumer(AsyncJsonWebsocketConsumer):
 
         self.path = pathlib.Path(qs['path'][0])
         self.preview = preview_re.match(str(self.path))
-        self.dummy = dict()
+        self.dummy_val = dict()
 
         if self.preview:
             await self.accept()
@@ -143,8 +143,6 @@ class InputConsumer(AsyncJsonWebsocketConsumer):
             logger.info(f"{self.user}@{self.path}: article is locked")
             return
 
-        typ = field['args'].get('type', 'str') if field['args'] else 'str'
-
         owner = None
         if 'owner' in field['args']:
             o = field['args']['owner']
@@ -153,19 +151,18 @@ class InputConsumer(AsyncJsonWebsocketConsumer):
                 owner = await misc.str_to_user(owner)
 
             elif type(o) == pathlib.PosixPath:
-                v = self.dummy.get(str(o))
+                v = self.dummy_val.get(str(o))
                 if v:
                     owner = await misc.str_to_user(v['val'])
 
-
         if owner:
-            logger.debug(f"get {field['name']}({idx}): {owner}@{typ} {val}")
+            logger.debug(f"get {field['name']}({idx}): {owner}@{field['args']['type']} {val}")
         else:
-            logger.debug(f"get {field['name']}({idx}): {typ} {val}")
+            logger.debug(f"get {field['name']}({idx}): {field['args']['type']} {val}")
 
         # verify files input
         try:
-            if typ in ['file', 'files']:
+            if field['args']['type'] in ['file', 'files']:
                 for i, x in enumerate(val):
                     buf = base64.b64decode(x['content'], validate=True)
                     m = magic.detect_from_content(buf)
@@ -177,7 +174,7 @@ class InputConsumer(AsyncJsonWebsocketConsumer):
                             logger.warning(f"{self.user}@{self.path}: different mimetype ({val[i]['type']} != {m.mime_type})")
                             val[i]['type'] = m.mime_type
 
-            elif typ in ['select']:
+            elif field['args']['type'] in ['select']:
                 val = field['args']['values'][int(val)]
 
         except Exception as e:
@@ -185,12 +182,12 @@ class InputConsumer(AsyncJsonWebsocketConsumer):
             return
 
 
-        if 'dummy' in field['args'] and field['args']['dummy'] == 1:
-            self.dummy[field['name']] = {'type': typ, 'val': val}
+        if field['args'].get('dummy', False):
+            self.dummy_val[field['name']] = {'type': field['args']['type'], 'val': val}
         else:
             await db_update_input(self.md.article, field['name'], self.user,
                                   self.user if owner is None else owner,
-                                  {'type': typ, 'val': val})
+                                  {'type': field['args']['type'], 'val': val})
 
         async with field['cv']:
             field['cv'].notify_all()

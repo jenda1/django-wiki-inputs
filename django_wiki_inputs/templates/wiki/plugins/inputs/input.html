@@ -2,7 +2,7 @@
 <span class="dw-input" data-id="{{id}}">
     <i class="fa fa-spinner fa-spin"></i>
 </span>
-{% elif args.type == 'text' or not args.type %}
+{% elif args.type == 'text' %}
 <input class="form-control dw-input{% if args.inline %} dw-input-inline{% endif %}"
        type="text"
        data-id="{{id}}"
