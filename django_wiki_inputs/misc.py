@@ -5,8 +5,6 @@ from channels.db import database_sync_to_async
 from collections import defaultdict
 import logging
 import asyncio
-import pyparsing as pp
-from pathlib import Path
 from . import models
 import re
 
@@ -19,7 +17,7 @@ logger = logging.getLogger(__name__)
 def db_get_article(path):
     try:
         return URLPath.get_by_path(str(path)).article
-    except:
+    except Exception:
         return None
 
 @database_sync_to_async
@@ -65,11 +63,7 @@ async def str_to_user(s):
     if s is None:
         return None
 
-    try:
-        m = email_re.match(s)
-    except:
-        ipdb.set_trace()
-
+    m = email_re.match(s)
     if not m:
         return None
 

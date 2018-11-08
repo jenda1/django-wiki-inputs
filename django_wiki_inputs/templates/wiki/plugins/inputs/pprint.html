@@ -4,6 +4,10 @@
 &#129300;
 {% elif type == 'str' or type == 'int' or type == 'float' or type == 'textarea' %}
 {{val}}
+{% elif type == 'stdout' %}
+<pre>{{val}}</pre>
+{% elif type == 'error' %}
+<div class="alert alert-danger" role="alert"><pre>{{val}}</pre></div>
 {% elif type == 'files' %}
 {% get_uuid as uid %}
 

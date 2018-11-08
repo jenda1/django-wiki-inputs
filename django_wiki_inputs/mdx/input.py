@@ -3,11 +3,8 @@ import markdown
 from django.template.loader import render_to_string
 import pyparsing as pp
 from pathlib import Path
-import threading
 import ipdb  # NOQA
 import logging
-
-from .. import misc
 
 logger = logging.getLogger(__name__)
 pp.ParserElement.setDefaultWhitespaceChars(' \t')
@@ -87,6 +84,10 @@ class InputPreprocessor(markdown.preprocessors.Preprocessor):
             ctx['src'] = doc[(start+shift_n+1):(end+shift_n-1)]
 
             if ctx['cmd'] == 'input':
+                if type(ctx['args']) == list:
+                    assert len(ctx['args']) == 0
+                    ctx['args'] = dict()
+
                 if 'type' not in ctx['args']:
                     ctx['args']['type'] = 'text'
 

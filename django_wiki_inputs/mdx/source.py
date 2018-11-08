@@ -40,7 +40,11 @@ class SourceTreeprocessor(markdown.treeprocessors.Treeprocessor):
 
             if block.tag == 'pre' and len(block) > 0 and block[0].tag == 'code':
                 txt = block[0].text
-                if txt.startswith('::'):
-                    txt = txt.split('\n', 1)[1]
 
-                self.source_fields[name] = txt
+                if txt.startswith('::'):
+                    self.source_fields[name] = {
+                        'text': txt.split('\n', 1)[1],
+                        'type': txt.split('\n', 1)[0][2:]
+                    }
+                else:
+                    self.source_fields[name] = {'text': txt}

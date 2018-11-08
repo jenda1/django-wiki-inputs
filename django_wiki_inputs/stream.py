@@ -1,4 +1,3 @@
-from django.contrib.auth.models import User, Group
 from channels.db import database_sync_to_async
 from aiostream import stream, core
 import logging
@@ -64,7 +63,7 @@ async def field_src(ic, path):
 
 @core.operator  # NOQA
 async def read_field(ic, user, src):
-    if src == None:
+    if src is None:
         yield None
         return
 
@@ -83,15 +82,14 @@ async def read_field(ic, user, src):
         return
 
     if ic.user.pk != user.pk and not await can_read_usr(md, field, ic.user):
-        yield {'type': 'error', 'val':"🚫"}
+        yield {'type': 'error', 'val': "🚫"}
         return
 
     last_pk = None
     while True:
-        default = {
-                'type': field['args']['type'], 
-                'val': field['args'].get('default'),
-                'default': True}
+        default = {'type': field['args']['type'],
+                   'val': field['args'].get('default'),
+                   'default': True}
 
         if field['args'].get('dummy', False):
             if ic.md == md:
@@ -107,7 +105,7 @@ async def read_field(ic, user, src):
 
         async with field['cv']:
             await field['cv'].wait()
-    
+
 
 async def arg_stream(ic, user, arg):
     if type(arg) in [int, str, float]:
@@ -128,7 +126,7 @@ async def arg_stream(ic, user, arg):
 async def args_stream(ic, args):
     out = [await arg_stream(ic, ic.user, arg) for arg in args]
 
-    s = stream.ziplatest(*out)
+    s = stream.ziplatest(*out, partial=False)
     async with core.streamcontext(s) as streamer:
         async for i in streamer:
             yield {'args': i}
@@ -161,9 +159,9 @@ async def display_fn(ic, field):
 async def display(ic, idx):
     field = ic.md.input_fields[idx]
     if 'fn' in field:
-        source = display_fn(ic, {'fname':'pprint', 'args': [field['fn']]})
+        source = display_fn(ic, {'fname': 'pprint', 'args': [field['fn']]})
     elif 'path' in field:
-        source = display_fn(ic, {'fname':'pprint', 'args': [field['path']]})
+        source = display_fn(ic, {'fname': 'pprint', 'args': [field['path']]})
 
     async with core.streamcontext(source) as streamer:
         async for item in streamer:
@@ -175,7 +173,6 @@ async def input(ic, idx):
     field = ic.md.input_fields[idx]
 
     owner = ic.user
-    val = None
 
     while True:
         src = [await arg_stream(ic, owner, pathlib.Path(field['name']))]
@@ -207,6 +204,5 @@ async def input(ic, idx):
 
                 if field['args']['type'] != i[0]['type']:
                     logger.warning(f"field type error: {field['args']['type']} != {i[0]['type']}")
-                                
 
                 yield out

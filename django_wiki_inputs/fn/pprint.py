@@ -1,6 +1,5 @@
-from django.contrib.auth.models import User, Group
+from django.contrib.auth.models import User
 from aiostream import core
-from collections import defaultdict
 from django.template.loader import render_to_string
 import logging
 import ipdb  # NOQA
@@ -21,7 +20,7 @@ async def pprint(ic, args):
             keys = list()
             vals = dict()
 
-            for i,val in enumerate(data):
+            for i, val in enumerate(data):
                 if val is None:
                     continue
 
@@ -32,7 +31,7 @@ async def pprint(ic, args):
 
                     vals[None][i] = val['val']
 
-                elif val['type'] in ['int', 'str', 'float', 'files']:
+                elif val['type'] in ['int', 'str', 'float', 'files', 'stdout', 'error']:
                     if None not in keys:
                         keys.insert(0, None)
                         vals[None] = [None] * len(data)
@@ -40,7 +39,7 @@ async def pprint(ic, args):
                     vals[None][i] = render_to_string(f"wiki/plugins/inputs/pprint.html", context=val)
 
                 elif val['type'] == 'user-list':
-                    for u,v in val['val'].items():
+                    for u, v in val['val'].items():
                         if u not in keys:
                             keys.append(u)
                             vals[u] = [None] * len(data)

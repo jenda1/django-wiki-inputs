@@ -4,7 +4,6 @@ from channels.db import database_sync_to_async
 import re
 import pathlib
 from .. import stream as my_stream
-from .. import misc
 from .. import models
 import ipdb  # NOQA
 
@@ -37,16 +36,16 @@ def db_get_input_users(article, name, flt):
 @core.operator
 async def get(ic, args):
     if len(args) < 2:
-        yield {'type':'error', 'val':"⚠ get() requires at least 2 arguments ⚠"}
+        yield {'type': 'error', 'val': "⚠ get() requires at least 2 arguments ⚠"}
         return
 
     if not isinstance(args[0], pathlib.Path):
-        yield {'type':'error', 'val':"⚠ get() first argument must be input ⚠"}
+        yield {'type': 'error', 'val': "⚠ get() first argument must be input ⚠"}
         return
 
     field_src = await my_stream.field_src(ic, args[0])
     if field_src is None:
-        yield {'type':'error', 'val':"⚠ get() first argument must be existing input ⚠"}
+        yield {'type': 'error', 'val': "⚠ get() first argument must be existing input ⚠"}
         return
 
     users = set()
