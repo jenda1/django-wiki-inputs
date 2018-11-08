@@ -112,4 +112,10 @@ class _MarkdownFactory(object):
             return md
 
 
-markdown_factory = _MarkdownFactory()
+def get_markdown_factory():
+    if get_markdown_factory._mk is None:
+        get_markdown_factory._mk = _MarkdownFactory()
+
+    return get_markdown_factory._mk
+
+get_markdown_factory._mk = None

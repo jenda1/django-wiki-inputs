@@ -53,7 +53,7 @@ async def can_read_usr(md, inp, user):
 async def field_src(ic, path):
     p = pathlib.Path(os.path.normpath(os.path.join(ic.path, str(path))))
 
-    md = await misc.markdown_factory.get_markdown(p.parent, ic.user)
+    md = await misc.get_markdown_factory().get_markdown(p.parent, ic.user)
     if md:
         return (md, p.name)
 
