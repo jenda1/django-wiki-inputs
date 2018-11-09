@@ -62,7 +62,7 @@ async def field_src(ic, path):
 
 
 @core.operator  # NOQA
-async def read_field(ic, user, src):
+async def read_field(ic, uname, src):
     if src is None:
         yield None
         return
@@ -81,7 +81,7 @@ async def read_field(ic, user, src):
         yield None
         return
 
-    if ic.user.pk != user.pk and not await can_read_usr(md, field, ic.user):
+    if ic.user.username != uname and not await can_read_usr(md, field, ic.user):
         yield {'type': 'error', 'val': "🚫"}
         return
 
@@ -95,7 +95,7 @@ async def read_field(ic, user, src):
             if ic.md == md:
                 yield ic.dummy_val.get(name, default)
         else:
-            db_val = await misc.db_get_input(md.article, name, user)
+            db_val = await misc.db_get_input(md.article, name, uname)
             if db_val is None:
                 yield default
 
@@ -107,12 +107,12 @@ async def read_field(ic, user, src):
             await field['cv'].wait()
 
 
-async def arg_stream(ic, user, arg):
+async def arg_stream(ic, uname, arg):
     if type(arg) in [int, str, float]:
         return stream.just({'type': type(arg).__name__, 'val': arg})
 
     elif isinstance(arg, pathlib.Path):
-        return read_field(ic, user, await field_src(ic, arg))
+        return read_field(ic, uname, await field_src(ic, arg))
 
     elif type(arg) is dict and 'fname' in arg:
         return display_fn(ic, arg)
@@ -124,7 +124,7 @@ async def arg_stream(ic, user, arg):
 
 @core.operator
 async def args_stream(ic, args):
-    out = [await arg_stream(ic, ic.user, arg) for arg in args]
+    out = [await arg_stream(ic, ic.user.username, arg) for arg in args]
 
     s = stream.ziplatest(*out, partial=False)
     async with core.streamcontext(s) as streamer:
@@ -175,10 +175,10 @@ async def input(ic, idx):
     owner = ic.user
 
     while True:
-        src = [await arg_stream(ic, owner, pathlib.Path(field['name']))]
+        src = [await arg_stream(ic, owner.username, pathlib.Path(field['name']))]
 
         if 'owner' in field['args']:
-            src.append(await arg_stream(ic, ic.user, pathlib.Path(field['args']['owner'])))
+            src.append(await arg_stream(ic, ic.user.username, pathlib.Path(field['args']['owner'])))
 
         s = stream.ziplatest(*src, partial=False)
         async with core.streamcontext(s) as streamer:

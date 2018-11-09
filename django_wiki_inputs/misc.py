@@ -36,23 +36,33 @@ def db_get_group(name):
     except Group.DoesNotExist:
         return None
 
+user_re = re.compile(r"^(.+) <(.+)>$")
 
 @database_sync_to_async
 def db_get_user(name):
     try:
         return User.objects.get(username=name)
     except User.DoesNotExist:
-        try:
-            return User.objects.get(email=name)
-        except User.DoesNotExist:
-            return None
+        pass
+
+    try:
+        return User.objects.get(email=name)
+    except User.DoesNotExist:
+        pass
+
+    try:
+        m = user_re.match(name)
+        if m:
+            return User.objects.get(email=m.group(2))
+    except User.DoesNotExist:
+        pass
 
 
 @database_sync_to_async
-def db_get_input(article, name, user):
+def db_get_input(article, name, uname):
     return models.Input.objects.filter(
         article=article,
-        owner=user,
+        owner__username=uname,
         name=name).last()
 
 
