@@ -31,7 +31,7 @@ async def pprint(ic, args):
 
                     vals[None][i] = val['val']
 
-                elif val['type'] in ['int', 'str', 'float', 'files', 'stdout', 'error']:
+                elif val['type'] in ['int', 'float', 'str', 'text', 'textarea', 'files', 'stdout', 'error']:
                     if None not in keys:
                         keys.insert(0, None)
                         vals[None] = [None] * len(data)
