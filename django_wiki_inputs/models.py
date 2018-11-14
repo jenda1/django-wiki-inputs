@@ -25,7 +25,7 @@ class Input(models.Model):
         verbose_name = _('Input')
         verbose_name_plural = _('Inputs')
         unique_together = ('article', 'name', 'owner', 'created')
-        ordering = ['article', 'name', 'owner', 'created']
+        ordering = ['article', 'name', 'owner', '-created']
         get_latest_by = ['article', 'name', 'owner', 'created']
 
 

@@ -10,7 +10,6 @@ $.ajaxSetup({
 })
 
 
-
 function receiveMessage(msg) {
   var type = String(msg['type']);
   var fid = Number(msg['id']);
@@ -33,7 +32,10 @@ function receiveMessage(msg) {
   if (type == 'display') {
     $('span[data-id=' + fid + '].dw-input')
       .html(msg['val'] ? msg['val']['val'] : "");
+
+    $('[data-toggle="popover"]').popover();
   }
+
 }
 
 
@@ -42,6 +44,8 @@ $(document).ready(function() {
   webSocketBridge = new channels.WebSocketBridge();
   webSocketBridge.connect('/ws/django-wiki-inputs?path=' + location.pathname);
   webSocketBridge.listen(receiveMessage)
+
+  $('[data-toggle="popover"]').popover();
 })
 
 
@@ -115,3 +119,5 @@ $('input[data-id].dw-input,textarea[data-id].dw-input,select[data-id].dw-input')
     }, 10000));
 
 });
+
+

@@ -2,7 +2,7 @@
 
 {% if type == None %}
 &#129300;
-{% elif type == 'int' or type == 'float' or type == 'str' or type == 'textarea' or type == 'textarea' %}
+{% elif type == 'int' or type == 'float' or type == 'str' or type == 'text' or type == 'textarea' %}
 {{val}}
 {% elif type == 'stdout' %}
 <pre>{{val}}</pre>
@@ -33,3 +33,5 @@
 {% else %}
 ???{{type}}???
 {% endif %}
+
+<a href="#" data-toggle="popover" title="Info" data-content="{{created}}"><span class="glyphicon glyphicon-info-sign"></a>

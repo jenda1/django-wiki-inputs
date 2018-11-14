@@ -43,6 +43,7 @@ class InputsPlugin(BasePlugin):
 
     html_whitelist = ['input', 'textarea', 'select', 'option', 'span', 'kbd']
     html_attributes = {
+        'a': ['data-toggle', 'data-content'],
         'input': ['data-id', 'data-user', 'value', 'class', 'id', 'type', 'disabled', 'multiple'],
         'textarea': ['data-id', 'class', 'id', 'type', 'disabled', 'multiple', 'rows', 'cols'],
         'select': ['data-id', 'class'],

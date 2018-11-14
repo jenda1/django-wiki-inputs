@@ -7,6 +7,7 @@ import os
 
 from . import misc
 from . import fn
+from . import models
 
 import ipdb # NOQA
 
@@ -23,6 +24,30 @@ def db_is_user_in_group(user, grp):
 def db_user_group_exists(user, grp):
     return user.groups.filter(name=grp).exists()
 
+
+@database_sync_to_async
+def db_get_input(article, name, uname, curr_pk, with_history=False):
+    req = models.Input.objects.filter(
+        article=article,
+        owner__username=uname,
+        name=name)
+
+    out = list()
+    for x in req:
+        if curr_pk == x.pk and not out:
+            return None
+
+        val = json.loads(x.val)
+        val['pk'] = x.pk
+        val['created'] = x.created.isoformat(),
+        val['author'] = None if x.author is None else x.author.username,
+
+        out.append(val)
+
+        if not with_history:
+            break
+
+    return out
 
 
 async def can_read_usr(md, inp, user):
@@ -62,7 +87,7 @@ async def field_src(ic, path):
 
 
 @core.operator  # NOQA
-async def read_field(ic, uname, src):
+async def read_field(ic, uname, src, with_history=False):
     if src is None:
         yield None
         return
@@ -71,7 +96,10 @@ async def read_field(ic, uname, src):
     name = src[1]
 
     if name in md.source_fields:
-        yield md.source_fields.get(name)
+        if with_history:
+            yield [md.source_fields.get(name)]
+        else:
+            yield md.source_fields.get(name)
         return
 
     for field in md.input_fields:
@@ -85,23 +113,29 @@ async def read_field(ic, uname, src):
         yield {'type': 'error', 'val': "🚫"}
         return
 
-    last_pk = None
+    curr_pk = None
+    default = {
+        'type':field['args']['type'],
+        'created': None,
+        'author': None,
+        'val':field['args'].get('default'),
+    }
+
     while True:
-        default = {'type': field['args']['type'],
-                   'val': field['args'].get('default'),
-                   'default': True}
-
         if field['args'].get('dummy', False):
-            if ic.md == md:
-                yield ic.dummy_val.get(name, default)
-        else:
-            db_val = await misc.db_get_input(md.article, name, uname)
-            if db_val is None:
-                yield default
+            yield ic.dummy_val.get(name, default) if ic.md == md else None
 
-            elif last_pk != db_val.pk:
-                last_pk = db_val.pk
-                yield json.loads(db_val.val)
+        else:
+            out = await db_get_input(md.article, name, uname, curr_pk, with_history)
+            if out is not None:
+                if with_history:
+                    yield out
+                else:
+                    yield out[0] if len(out) else default
+
+                if out:
+                    logger.debug(out)
+                    curr_pk = out[0]['pk']
 
         async with field['cv']:
             await field['cv'].wait()
@@ -122,14 +156,14 @@ async def arg_stream(ic, uname, arg):
         return stream.empty()
 
 
-@core.operator
-async def args_stream(ic, args):
-    out = [await arg_stream(ic, ic.user.username, arg) for arg in args]
-
-    s = stream.ziplatest(*out, partial=False)
-    async with core.streamcontext(s) as streamer:
-        async for i in streamer:
-            yield {'args': i}
+#@core.operator
+#async def args_stream(ic, args):
+#    out = [await arg_stream(ic, ic.user.username, arg) for arg in args]
+#
+#    s = stream.ziplatest(*out, partial=False)
+#    async with core.streamcontext(s) as streamer:
+#        async for i in streamer:
+#            yield {'args': i}
 
 
 @core.operator
@@ -140,8 +174,7 @@ async def display_fn(ic, field):
 
         source = fnc(ic, field['args'])
     except AttributeError:
-        logger.warning(f"{ic.user}@{ic.path}: unknown display method {field['fname']}")
-        yield "\u26A0"
+        yield {'type': 'error', 'val': f"⚠ neznámá funkce {field['fname']}"}
         return
 
     try:

@@ -58,15 +58,6 @@ def db_get_user(name):
         pass
 
 
-@database_sync_to_async
-def db_get_input(article, name, uname):
-    return models.Input.objects.filter(
-        article=article,
-        owner__username=uname,
-        name=name).last()
-
-
-
 email_re = re.compile(r'^.*?([a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+).*$')
 
 async def str_to_user(s):
