@@ -22,21 +22,16 @@ ppath = pp.Group(
 
 pmacro = pp.Combine(pp.Literal('_').suppress() + pp.Word(pp.alphas+pp.nums, pp.alphas+pp.nums+"_")).setParseAction(lambda t: dict(macro=t[0].rstrip('_')))
 pinput = (pp.Literal('[').suppress()
-          + pp.CaselessKeyword('input').setResultsName('cmd')
-          + pident.setResultsName('name')
-          + pp.Dict(
-              pp.ZeroOrMore(
-                  pp.Group(
-                      pident
-                      + pp.Literal('=').suppress()
-                      + (pmacro ^ pint ^ pfloat ^ pstr ^ ppath)))).setResultsName('args')
-          + pp.Literal(']').suppress())
+          + pp.CaselessKeyword('input').setResultsName('cmd')  # NOQA
+          + pident.setResultsName('name')  # NOQA
+          + pp.Dict(pp.ZeroOrMore(pp.Group(pident + pp.Literal('=').suppress() + (pmacro ^ pint ^ pfloat ^ pstr ^ ppath)))).setResultsName('args')  # NOQA
+          + pp.Literal(']').suppress()) # NOQA
 
 pexpr = pp.Forward()
 pexpr << pident.setResultsName('fname') + pp.Literal('(').suppress() + pp.delimitedList(pint ^ pfloat ^ pstr ^ ppath ^ pp.Group(pexpr), delim=",").setResultsName('args') + pp.Literal(')').suppress()
 
-pdisplay = (pp.Literal('[').suppress() +
-            pp.CaselessKeyword('display').setResultsName('cmd') + (ppath.setResultsName('path') ^ pp.Group(pexpr).setResultsName('fn')) +
+pdisplay = (pp.Literal('[').suppress() +  # NOQA
+            pp.CaselessKeyword('display').setResultsName('cmd') + (ppath.setResultsName('path') ^ pp.Group(pexpr).setResultsName('fn')) +  # NOQA
             pp.Literal(']').suppress())
 
 pparser = pinput ^ pdisplay

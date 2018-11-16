@@ -1,11 +1,10 @@
-from django.contrib.auth.models import User, Group
+from django.contrib.auth.models import User
 from wiki.models import URLPath
 from wiki.core.markdown import ArticleMarkdown
 from channels.db import database_sync_to_async
 from collections import defaultdict
 import logging
 import asyncio
-from . import models
 import re
 
 import ipdb # NOQA
@@ -24,17 +23,8 @@ def db_get_article(path):
 def db_get_article_markdown(article):
     md = ArticleMarkdown(article, preview=True)     # FIXME: does the user= argument missing?
     md.convert(article.current_revision.content)
-    md.article_revision_pk = article.current_revision.pk
-
     return md
 
-
-@database_sync_to_async
-def db_get_group(name):
-    try:
-        return Group.objects.get(name=name)
-    except Group.DoesNotExist:
-        return None
 
 user_re = re.compile(r"^(.+) <(.+)>$")
 
@@ -50,12 +40,12 @@ def db_get_user(name):
     except User.DoesNotExist:
         pass
 
-    try:
-        m = user_re.match(name)
-        if m:
+    m = user_re.match(name)
+    if m:
+        try:
             return User.objects.get(email=m.group(2))
-    except User.DoesNotExist:
-        pass
+        except User.DoesNotExist:
+            pass
 
 
 email_re = re.compile(r'^.*?([a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+).*$')
@@ -75,7 +65,7 @@ async def str_to_user(s):
 class _MarkdownFactory(object):
     def __init__(self):
         self.cache = dict()
-        self._input_cv = defaultdict(dict)
+        self.input_cv = defaultdict(dict)
         self.render_lock = asyncio.Lock()
 
     async def get_markdown(self, path, user):
@@ -84,15 +74,10 @@ class _MarkdownFactory(object):
             logger.debug(f"{user}@{path}: article does not exits")
             return None
 
-        if not article.can_read(user):
-            logger.debug(f"{user}@{path}: read forbidden")
-            return None
-
+        cid = article.current_revision.pk
         async with self.render_lock:
             try:
-                md = self.cache[article.pk]
-                if md.article_revision_pk == article.current_revision.pk:
-                    return md
+                return self.cache[cid]
             except KeyError:
                 pass
 
@@ -102,14 +87,12 @@ class _MarkdownFactory(object):
             for inp in md.input_fields:
                 if inp['cmd'] == 'input':
                     try:
-                        inp['cv'] = self._input_cv[article.pk][inp['name']]
+                        inp['cv'] = self.input_cv[cid][inp['name']]
                     except KeyError:
-                        cv = asyncio.Condition()
-                        self._input_cv[article.pk][inp['name']] = cv
-                        inp['cv'] = cv
+                        inp['cv'] = asyncio.Condition()
+                        self.input_cv[cid][inp['name']] = inp['cv']
 
-            self.cache[article.pk] = md
-
+            self.cache[cid] = md
             return md
 
 
@@ -118,5 +101,6 @@ def get_markdown_factory():
         get_markdown_factory._mk = _MarkdownFactory()
 
     return get_markdown_factory._mk
+
 
 get_markdown_factory._mk = None

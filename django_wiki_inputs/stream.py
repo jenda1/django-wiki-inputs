@@ -15,9 +15,8 @@ logger = logging.getLogger(__name__)
 
 
 @database_sync_to_async
-def db_is_user_in_group(user, grp):
-    return user.groups.filter(name=grp.name).exists()
-
+def db_is_user_in_group(user, name):
+    return user.groups.filter(name=name).exists()
 
 
 @database_sync_to_async
@@ -26,80 +25,86 @@ def db_user_group_exists(user, grp):
 
 
 @database_sync_to_async
-def db_get_input(article, name, uname, curr_pk, with_history=False):
-    req = models.Input.objects.filter(
+def db_get_input(article, name, uname, curr_pk=None):
+    val = models.Input.objects.filter(
         article=article,
         owner__username=uname,
-        name=name)
+        name=name).latest()
 
-    out = list()
-    for x in req:
-        if curr_pk == x.pk and not out:
-            return None
+    if curr_pk == val.pk:
+        return None
 
-        val = json.loads(x.val)
-        val['pk'] = x.pk
-        val['created'] = x.created.isoformat(),
-        val['author'] = None if x.author is None else x.author.username,
-
-        out.append(val)
-
-        if not with_history:
-            break
+    out = json.loads(val.val)
+    out['pk'] = val.pk
+    out['created'] = val.created.isoformat(),
+    out['author'] = None if val.author is None else val.author.username,
 
     return out
 
 
-async def can_read_usr(md, inp, user):
+async def can_read(md, user, field=None, is_owner=True):
+    if not md.article.can_read(user):
+        return False
+
     if md.article.current_revision.user.pk == user.pk:
         return True
 
-    if 'can_read' not in inp['args']:
+    if field is None or is_owner:
+        return True
+
+    if 'can_read' not in field['args']:
         return False
 
-    can_read = inp['args']['can_read']
-
+    can_read = field['args']['can_read']
     if can_read == '_all_':
         return True
 
     # user is in the can_read group
     if can_read == '_':
-        grp = await misc.db_get_group(can_read.strip('_'))
-        if grp is None:
-            logger.debug(f"{md.article}: {inp['name']}: can_read use unknown group {can_read}")
-            return False
-
-        return await db_is_user_in_group(user, grp)
-
-    # or can_read equals to the user
-    return can_read == user.username or can_read == user.email
+        return await db_is_user_in_group(user, can_read.strip('_'))
+    else:
+        return can_read == user.username or can_read == user.email
 
 
-async def field_src(ic, path):
-    p = pathlib.Path(os.path.normpath(os.path.join(ic.path, str(path))))
+def normpath(ic, path):
+    return pathlib.Path(os.path.normpath(os.path.join(ic.path, str(path))))
 
-    md = await misc.get_markdown_factory().get_markdown(p.parent, ic.user)
-    if md:
-        return (md, p.name)
 
-    logger.debug(f"{ic.user}@{path}: article {p.parent} does not exits or user has no read permission")
+# def get_field_wiki(ic, md):
+#     if not await can_read(md, ic.user, is_owner=is_owner):
+#   curr = {
+#           'type': 'wiki',
+#           'pk': md.article.current_revision.pk,
+#           'created': md.article.owner.username,
+#           'author': md.article.owner.username,
+#           'val':md.article.current_revision.content
+#       }
+#
+#       if just_actual:
+#           yield curr
+#       else:       # FIXME: whole article history
+#           yield [curr]
+#
+#       return
 
 
 
 @core.operator  # NOQA
-async def read_field(ic, uname, src, with_history=False):
-    if src is None:
-        yield None
+async def read_field(ic, uname, path):
+    name = path.name
+    is_owner = (ic.user.username == uname)
+
+    md = await misc.get_markdown_factory().get_markdown(path.parent, ic.user)
+    if not md:
+        yield {'type': 'error', 'val': "🚫?"}
         return
 
-    md = src[0]
-    name = src[1]
+    if not await can_read(md, ic.user, is_owner=is_owner):
+        yield {'type': 'error', 'val': "🚫"}
+        return
 
     if name in md.source_fields:
-        if with_history:
-            yield [md.source_fields.get(name)]
-        else:
-            yield md.source_fields.get(name)
+        yield md.source_fields.get(name)
         return
 
     for field in md.input_fields:
@@ -109,36 +114,33 @@ async def read_field(ic, uname, src, with_history=False):
         yield None
         return
 
-    if ic.user.username != uname and not await can_read_usr(md, field, ic.user):
+    if not can_read(md, ic.user, field, is_owner):
         yield {'type': 'error', 'val': "🚫"}
         return
 
-    curr_pk = None
-    default = {
-        'type':field['args']['type'],
+    curr = {
+        'type': field['args']['type'],
+        'pk': None,
         'created': None,
         'author': None,
-        'val':field['args'].get('default'),
+        'val': field['args'].get('default'),
     }
 
     while True:
         if field['args'].get('dummy', False):
-            yield ic.dummy_val.get(name, default) if ic.md == md else None
-
+            if ic.md == md:
+                curr = ic.dummy_val.get(name, curr)
         else:
-            out = await db_get_input(md.article, name, uname, curr_pk, with_history)
-            if out is not None:
-                if with_history:
-                    yield out
-                else:
-                    yield out[0] if len(out) else default
+            try:
+                curr = await db_get_input(md.article, name, uname, curr['pk'])
+            except models.Input.DoesNotExist:
+                pass
 
-                if out:
-                    logger.debug(out)
-                    curr_pk = out[0]['pk']
+        yield curr
 
         async with field['cv']:
             await field['cv'].wait()
+
 
 
 async def arg_stream(ic, uname, arg):
@@ -146,7 +148,8 @@ async def arg_stream(ic, uname, arg):
         return stream.just({'type': type(arg).__name__, 'val': arg})
 
     elif isinstance(arg, pathlib.Path):
-        return read_field(ic, uname, await field_src(ic, arg))
+        path = normpath(ic, arg)
+        return read_field(ic, uname, path)
 
     elif type(arg) is dict and 'fname' in arg:
         return display_fn(ic, arg)
@@ -154,16 +157,6 @@ async def arg_stream(ic, uname, arg):
     else:
         logger.warning(f"{ic.user}@{ic.path}: argument {arg}: unknow type")
         return stream.empty()
-
-
-#@core.operator
-#async def args_stream(ic, args):
-#    out = [await arg_stream(ic, ic.user.username, arg) for arg in args]
-#
-#    s = stream.ziplatest(*out, partial=False)
-#    async with core.streamcontext(s) as streamer:
-#        async for i in streamer:
-#            yield {'args': i}
 
 
 @core.operator
@@ -211,7 +204,7 @@ async def input(ic, idx):
         src = [await arg_stream(ic, owner.username, pathlib.Path(field['name']))]
 
         if 'owner' in field['args']:
-            src.append(await arg_stream(ic, ic.user.username, pathlib.Path(field['args']['owner'])))
+            src.append(await arg_stream(ic, ic.user.username, field['args']['owner']))
 
         s = stream.ziplatest(*src, partial=False)
         async with core.streamcontext(s) as streamer:

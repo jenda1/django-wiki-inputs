@@ -56,7 +56,7 @@ def db_update_input(article, name, user, owner, val):
 
 
 class InputConsumer(AsyncJsonWebsocketConsumer):
-    async def connect(self, *args, **kwargs):
+    async def connect(self, *args, **kwargs):  # NOQA
         self.user = self.scope['user']
         if not self.user.is_authenticated:
             await self.close()
@@ -125,7 +125,7 @@ class InputConsumer(AsyncJsonWebsocketConsumer):
             self.run_task.cancel()
 
 
-    async def receive_json(self, content):
+    async def receive_json(self, content):  # NOQA
         try:
             idx = int(content['id'])
             field = self.md.input_fields[idx]

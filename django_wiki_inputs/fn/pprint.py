@@ -9,7 +9,7 @@ from .. import stream as my_stream
 logger = logging.getLogger(__name__)
 
 
-@core.operator
+@core.operator  # NOQA
 async def pprint(ic, args):
     a = [await my_stream.arg_stream(ic, ic.user.username, arg) for arg in args]
     source = stream.ziplatest(*a, partial=False)
