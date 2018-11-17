@@ -45,6 +45,16 @@ class InputExtension(markdown.Extension):
         md.preprocessors.add('dw-input', InputPreprocessor(md), '>html_block')
 
 
+def query_user(val):
+    vals = val.split()
+
+    return User.objects.filter(
+        Q(email=val) |
+        Q(username=val) |
+        (Q(first_name=vals[0]) & Q(last_name=vals[-1])) |
+        Q(last_name=val) |
+        Q(first_name=val)).first()
+
 
 class InputPreprocessor(markdown.preprocessors.Preprocessor):
     """django-wiki input preprocessor - parse text for [input(-variant)?
@@ -53,19 +63,29 @@ class InputPreprocessor(markdown.preprocessors.Preprocessor):
     def __init__(self, *args, **kwargs):
         super(InputPreprocessor, self).__init__(*args, **kwargs)
 
-        # FIXME: pident pattern should not allow '_' at the end, the names are used internally
-
         self.input_fields = list()
         if self.markdown:
             self.markdown.input_fields = self.input_fields
 
-    def expand_macro(self, m):
-        if m == 'all':
-            usrs = User.objects.all().order_by('last_name', 'first_name')
+    # [f"{u.first_name} {u.last_name} <{u.email}>" for u in usrs]
+    def expand_user_list(self, val):
+        if 'macro' in val:
+            if val['macro'] == 'all':
+                return [u for u in User.objects.all().order_by('last_name', 'first_name')]
+            else:
+                return [u for u in User.objects.filter(groups__name=val['macro']).order_by('last_name', 'first_name')]
         else:
-            usrs = User.objects.filter(groups__name=m).order_by('last_name', 'first_name')
+            return query_user(str(ctx['args']['values']))
 
-        return [f"{u.first_name} {u.last_name} <{u.email}>" for u in usrs]
+
+    def parse_select_user(self, args):
+        if 'values' in args:
+            args['values'] = self.expand_user_list(args['values'])
+
+        if 'default' in args:
+            args['default'] = query_user(str(args['default']))
+        else:
+            args['default'] = self.markdown.user
 
 
     def run(self, lines):
@@ -77,6 +97,7 @@ class InputPreprocessor(markdown.preprocessors.Preprocessor):
             ctx = t.asDict()
             ctx['id'] = len(self.input_fields)
             ctx['src'] = doc[(start+shift_n+1):(end+shift_n-1)]
+            ctx['user'] = self.markdown.user
 
             if ctx['cmd'] == 'input':
                 if type(ctx['args']) == list:
@@ -86,14 +107,11 @@ class InputPreprocessor(markdown.preprocessors.Preprocessor):
                 if 'type' not in ctx['args']:
                     ctx['args']['type'] = 'text'
 
-                if 'values' in ctx['args']:
-                    if type(ctx['args']['values']) == dict and 'macro' in ctx['args']['values']:
-                        ctx['args']['values'] = self.expand_macro(ctx['args']['values']['macro'])
-                    elif type(ctx['args']['values']) == str:
-                        ctx['args']['values'] = [x.strip() for x in ctx['args']['values'].split(';')]
+                if ctx['args']['type'] == 'select-user':
+                    self.parse_select_user(ctx['args'])
 
-                    if 'default' not in ctx['args'] and len(ctx['args']['values']):
-                        ctx['args']['default'] = ctx['args']['values'][0]
+                if 'can_read' in ctx['args']:
+                    ctx['args']['can_read'] = self.expand_user_list(ctx['args']['can_read'])
 
             tmpl = "preview.html" if self.markdown.preview else "input.html"
             html = render_to_string(f"wiki/plugins/inputs/{tmpl}", context=ctx)

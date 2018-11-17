@@ -174,7 +174,7 @@ class InputConsumer(AsyncJsonWebsocketConsumer):
                             logger.warning(f"{self.user}@{self.path}: different mimetype ({val[i]['type']} != {m.mime_type})")
                             val[i]['type'] = m.mime_type
 
-            elif field['args']['type'] in ['select']:
+            elif field['args']['type'] in ['select-user']:
                 val = field['args']['values'][int(val)]
 
         except Exception as e:

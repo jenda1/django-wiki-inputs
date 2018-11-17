@@ -20,8 +20,8 @@ def db_get_article(path):
         return None
 
 @database_sync_to_async
-def db_get_article_markdown(article):
-    md = ArticleMarkdown(article, preview=True)     # FIXME: does the user= argument missing?
+def db_get_article_markdown(article, user):
+    md = ArticleMarkdown(article, preview=True, user=user)
     md.convert(article.current_revision.content)
     return md
 
@@ -65,7 +65,7 @@ async def str_to_user(s):
 class _MarkdownFactory(object):
     def __init__(self):
         self.cache = dict()
-        self.input_cv = defaultdict(dict)
+        self.input_cv = dict()
         self.render_lock = asyncio.Lock()
 
     async def get_markdown(self, path, user):
@@ -77,22 +77,22 @@ class _MarkdownFactory(object):
         cid = article.current_revision.pk
         async with self.render_lock:
             try:
-                return self.cache[cid]
+                return self.cache[(cid,user.pk)]
             except KeyError:
                 pass
 
             logger.debug(f"{user}@{path}: render current version")
-            md = await db_get_article_markdown(article)
+            md = await db_get_article_markdown(article, user)
 
-            for inp in md.input_fields:
-                if inp['cmd'] == 'input':
+            for field in md.input_fields:
+                if field['cmd'] == 'input':
                     try:
-                        inp['cv'] = self.input_cv[cid][inp['name']]
+                        field['cv'] = self.input_cv[(cid,user.pk,field['name'])]
                     except KeyError:
-                        inp['cv'] = asyncio.Condition()
-                        self.input_cv[cid][inp['name']] = inp['cv']
+                        field['cv'] = asyncio.Condition()
+                        self.input_cv[(cid,user.pk,field['name'])] = field['cv']
 
-            self.cache[cid] = md
+            self.cache[(cid,user.pk)] = md
             return md
 
 
