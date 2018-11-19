@@ -1,10 +1,13 @@
+import logging
 from django import template
 from django.template.defaultfilters import stringfilter
 from django.utils.safestring import mark_safe
 import uuid
 import base64
+import ipdb  # NOQA
 
 import pygments
+logger = logging.getLogger(__name__)
 
 register = template.Library()
 

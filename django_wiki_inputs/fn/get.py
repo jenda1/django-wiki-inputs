@@ -1,3 +1,4 @@
+from django.contrib.auth.models import User
 from aiostream import stream, core
 import logging
 from channels.db import database_sync_to_async
@@ -18,26 +19,28 @@ filt_re = re.compile(r"^_(.+)_$")
 def db_get_input_users(md, name, items):
     is_list = len(items) > 1
     users = set()
-
     for flt in items:
         if 'val' not in flt:
             continue
 
-        m = filt_re.match(flt['val'])
-        if m:
-            is_list = True
-
-            qs = models.Input.objects.filter(article=md.article, name=name)
-            if flt != 'all':
-                qs = qs.filter(owner__groups__name=m.group(1))
-            qs = qs.order_by('article', 'name', 'owner', '-created').distinct('article', 'name', 'owner')
-
-            for i in qs.all():
-                # FIXME: can read !!!!!
-                users.add(i.owner.username)
+        if isinstance(flt['val'], User):
+            users.add(flt['val'])
         else:
-            pass
-            # FIXME: 1 user???
+            m = filt_re.match(flt['val'])
+            if m:
+                is_list = True
+
+                qs = models.Input.objects.filter(article=md.article, name=name)
+                if flt != 'all':
+                    qs = qs.filter(owner__groups__name=m.group(1))
+                qs = qs.order_by('article', 'name', 'owner', '-created').distinct('article', 'name', 'owner')
+
+                for i in qs.all():
+                    users.add(i.owner.username)
+            else:
+                u = misc.dbsync_get_user(flt['val'])
+                if u:
+                    users.add(u.username)
 
     return users, is_list
 
@@ -53,7 +56,8 @@ async def get(ic, args):
         yield {'type': 'error', 'val': "⚠ get() first argument must be path ⚠"}
         return
 
-    path = my_stream.normpath(ic, args[0])
+
+    path = misc.normpath(ic, args[0])
     md = await misc.get_markdown_factory().get_markdown(path.parent, ic.user)
     if md is None:
         yield {'type': 'error', 'val': f"⚠ get() article {path.parent} does not exist ⚠"}
@@ -63,7 +67,7 @@ async def get(ic, args):
 
     while True:
         src = [my_stream.read_field(ic, x, path) for x in users]
-        src += [await my_stream.arg_stream(ic, ic.user.username, x) for x in args[1:]]
+        src += [await my_stream.arg_stream(ic, ic.user, x) for x in args[1:]]
 
         s = stream.ziplatest(*src, partial=False)
         async with core.streamcontext(s) as streamer:
@@ -78,7 +82,7 @@ async def get(ic, args):
                     break
 
                 if is_list:
-                    yield {'type': 'user-list', 'val': dict(zip(users, i[:len(users)]))}
+                    yield {'type': 'user-list', 'val': dict(zip([u.username for u in users], i[:len(users)])), }
                 else:
                     yield i[0]
 

@@ -1,11 +1,13 @@
+from django.db.models import Q
 from django.contrib.auth.models import User
 from wiki.models import URLPath
 from wiki.core.markdown import ArticleMarkdown
 from channels.db import database_sync_to_async
-from collections import defaultdict
 import logging
+import pathlib
 import asyncio
 import re
+import os
 
 import ipdb # NOQA
 
@@ -27,25 +29,29 @@ def db_get_article_markdown(article, user):
 
 
 user_re = re.compile(r"^(.+) <(.+)>$")
+def dbsync_get_user(name):
+    names = name.split(name)
 
-@database_sync_to_async
-def db_get_user(name):
-    try:
-        return User.objects.get(username=name)
-    except User.DoesNotExist:
-        pass
-
-    try:
-        return User.objects.get(email=name)
-    except User.DoesNotExist:
-        pass
+    q = Q(username=name) | Q(email=name)
+    if len(names) == 2:
+        q |= (Q(first_name=names[0]) & Q(last_name=names[-1]))
+    q |= Q(last_name=name) | Q(first_name=name)
 
     m = user_re.match(name)
     if m:
-        try:
-            return User.objects.get(email=m.group(2))
-        except User.DoesNotExist:
-            pass
+        q |= Q(email=m.group(2))
+
+    return User.objects.filter(q).first()
+
+
+@database_sync_to_async
+def db_get_user(name):
+    return dbsync_get_user(name)
+
+
+@database_sync_to_async
+def db_is_user_in_group(user, name):
+    return user.groups.filter(name=name).exists()
 
 
 email_re = re.compile(r'^.*?([a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+).*$')
@@ -59,6 +65,32 @@ async def str_to_user(s):
         return None
 
     return await db_get_user(m.group(1))
+
+
+def normpath(ic, path):
+    return pathlib.Path(os.path.normpath(os.path.join(ic.path, str(path))))
+
+
+async def can_read_field(md, user, field):
+    if not md.article.can_read(user):
+        return False
+
+    if md.article.current_revision.user.pk == user.pk:
+        return True
+
+    if 'can_read' not in field['args']:
+        return False
+
+    can_read = field['args']['can_read']
+    if can_read == '_all_':
+        return True
+
+    # user is in the can_read group
+    if can_read == '_':
+        return await db_is_user_in_group(user, can_read.strip('_'))
+    else:
+        return can_read == user.username or can_read == user.email
+
 
 
 
@@ -77,7 +109,7 @@ class _MarkdownFactory(object):
         cid = article.current_revision.pk
         async with self.render_lock:
             try:
-                return self.cache[(cid,user.pk)]
+                return self.cache[(cid, user.pk)]
             except KeyError:
                 pass
 
@@ -87,12 +119,12 @@ class _MarkdownFactory(object):
             for field in md.input_fields:
                 if field['cmd'] == 'input':
                     try:
-                        field['cv'] = self.input_cv[(cid,user.pk,field['name'])]
+                        field['cv'] = self.input_cv[(cid, user.pk, field['name'])]
                     except KeyError:
                         field['cv'] = asyncio.Condition()
-                        self.input_cv[(cid,user.pk,field['name'])] = field['cv']
+                        self.input_cv[(cid, user.pk, field['name'])] = field['cv']
 
-            self.cache[(cid,user.pk)] = md
+            self.cache[(cid, user.pk)] = md
             return md
 
 

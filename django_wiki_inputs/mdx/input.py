@@ -1,10 +1,13 @@
 from django.contrib.auth.models import User
+from django.db.models import Q
 import markdown
 from django.template.loader import render_to_string
 import pyparsing as pp
 from pathlib import Path
 import ipdb  # NOQA
 import logging
+
+from .. import misc
 
 logger = logging.getLogger(__name__)
 pp.ParserElement.setDefaultWhitespaceChars(' \t')
@@ -45,17 +48,6 @@ class InputExtension(markdown.Extension):
         md.preprocessors.add('dw-input', InputPreprocessor(md), '>html_block')
 
 
-def query_user(val):
-    vals = val.split()
-
-    return User.objects.filter(
-        Q(email=val) |
-        Q(username=val) |
-        (Q(first_name=vals[0]) & Q(last_name=vals[-1])) |
-        Q(last_name=val) |
-        Q(first_name=val)).first()
-
-
 class InputPreprocessor(markdown.preprocessors.Preprocessor):
     """django-wiki input preprocessor - parse text for [input(-variant)?
     (args*)] references. """
@@ -73,9 +65,9 @@ class InputPreprocessor(markdown.preprocessors.Preprocessor):
             if val['macro'] == 'all':
                 return [u for u in User.objects.all().order_by('last_name', 'first_name')]
             else:
-                return [u for u in User.objects.filter(groups__name=val['macro']).order_by('last_name', 'first_name')]
+                return [u for u in User.objects.filter(Q(groups__name=val['macro']) | Q(pk=self.markdown.user.pk)).order_by('last_name', 'first_name')]
         else:
-            return query_user(str(ctx['args']['values']))
+            return misc.dbsync_get_user(str(val['values']))
 
 
     def parse_select_user(self, args):
@@ -83,7 +75,7 @@ class InputPreprocessor(markdown.preprocessors.Preprocessor):
             args['values'] = self.expand_user_list(args['values'])
 
         if 'default' in args:
-            args['default'] = query_user(str(args['default']))
+            args['default'] = misc.dbsync_get_user(str(args['default']))
         else:
             args['default'] = self.markdown.user
 
@@ -94,34 +86,41 @@ class InputPreprocessor(markdown.preprocessors.Preprocessor):
         shift_n = 0
 
         for t, start, end in pparser.scanString(doc):
-            ctx = t.asDict()
-            ctx['id'] = len(self.input_fields)
-            ctx['src'] = doc[(start+shift_n+1):(end+shift_n-1)]
-            ctx['user'] = self.markdown.user
+            field = t.asDict()
+            field['id'] = len(self.input_fields)
+            field['src'] = doc[(start+shift_n+1):(end+shift_n-1)]
+            field['user'] = self.markdown.user
 
-            if ctx['cmd'] == 'input':
-                if type(ctx['args']) == list:
-                    assert len(ctx['args']) == 0
-                    ctx['args'] = dict()
+            html = ""
+            if field['cmd'] == 'display':
+                if self.markdown.preview:
+                    html = render_to_string(f"wiki/plugins/inputs/preview.html", context=field)
+                else:
+                    html = render_to_string(f"wiki/plugins/inputs/display.html", context=field)
 
-                if 'type' not in ctx['args']:
-                    ctx['args']['type'] = 'text'
+            elif field['cmd'] == 'input':
+                if type(field['args']) == list:
+                    assert len(field['args']) == 0
+                    field['args'] = dict()
 
-                if ctx['args']['type'] == 'select-user':
-                    self.parse_select_user(ctx['args'])
+                if 'type' not in field['args']:
+                    field['args']['type'] = 'text'
 
-                if 'can_read' in ctx['args']:
-                    ctx['args']['can_read'] = self.expand_user_list(ctx['args']['can_read'])
+                if field['args']['type'] == 'select-user':
+                    self.parse_select_user(field['args'])
 
-            tmpl = "preview.html" if self.markdown.preview else "input.html"
-            html = render_to_string(f"wiki/plugins/inputs/{tmpl}", context=ctx)
+
+                if self.markdown.preview:
+                    html = render_to_string(f"wiki/plugins/inputs/preview.html", context=field)
+                elif misc.can_read_field(self.markdown, self.markdown.user, field):
+                    html = render_to_string(f"wiki/plugins/inputs/input.html", context=field)
+
             html_repl = self.markdown.htmlStash.store(html, safe=True)
-
             doc = doc[:(start+shift_n)] + html_repl + doc[(end+shift_n):]
 
             shift_n -= end-start
             shift_n += len(html_repl)
 
-            self.input_fields.append(ctx)
+            self.input_fields.append(field)
 
         return doc.split("\n")

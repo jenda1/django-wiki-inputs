@@ -47,7 +47,7 @@ class InputsPlugin(BasePlugin):
         'input': ['data-id', 'data-user', 'value', 'class', 'id', 'type', 'disabled', 'multiple'],
         'textarea': ['data-id', 'class', 'id', 'type', 'disabled', 'multiple', 'rows', 'cols'],
         'select': ['data-id', 'class'],
-        'option': ['value'],
+        'option': ['value', 'selected'],
         'span': ['data-id', 'data-listen', 'class', 'id'],
         'kbd': ['class'],
     }
