@@ -140,8 +140,7 @@ class InputConsumer(AsyncJsonWebsocketConsumer):
             logger.warning(f"{self.user}@{self.path}: broken request ({field['cmd']} != input)")
             return
 
-        if self.md.article.current_revision.locked:
-            logger.info(f"{self.user}@{self.path}: article is locked")
+        if not (field['can_read'] and field['can_write']):
             return
 
         owner = None

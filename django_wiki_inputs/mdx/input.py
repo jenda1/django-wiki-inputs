@@ -84,6 +84,28 @@ class InputPreprocessor(markdown.preprocessors.Preprocessor):
             args['default'] = self.markdown.user
 
 
+    def can_field(self, field, key):
+        md = self.markdown
+
+        # author of the article can everything
+        if md.article.current_revision.user.pk == md.user.pk:
+            return True
+
+        if key not in field['args']:
+            # if key is not set, just own inputs
+            return True
+
+        v = field['args'][key]
+        if v == '_all_':
+            return True
+
+        # user is in the v group
+        if v.startswith('_') and v.endswith('_'):
+            return self.markdown.user.groups.filter(name=v.strip('_')).exists()
+        else:
+            return v == self.markdown.user.username or can_read == self.markdown.user.email
+
+
     def run(self, lines):
         doc = '\n'.join(lines)
 
@@ -113,7 +135,9 @@ class InputPreprocessor(markdown.preprocessors.Preprocessor):
                 if field['args']['type'] == 'select-user':
                     self.parse_select_user(field['args'])
 
-                field['can_read'] = misc.can_read_field(self.markdown, self.markdown.user, field)
+                field['can_read'] = self.markdown.article.can_read(self.markdown.user) and self.can_field(field, 'can_read')
+
+                field['can_write'] = field['can_read'] and self.can_field(field, 'can_write') and not self.markdown.article.current_revision.locked
 
                 if field['can_read']:
                     if self.markdown.preview:

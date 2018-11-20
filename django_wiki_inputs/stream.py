@@ -62,7 +62,7 @@ def db_get_input(article, name, user, curr_pk=None):
 @core.operator  # NOQA
 async def read_field(ic, user, path):
     name = path.name
-    # is_owner = (ic.user.pk == user.pk)
+
 
     md = await misc.get_markdown_factory().get_markdown(path.parent, ic.user)
     if not md:
@@ -193,7 +193,7 @@ async def input(ic, idx):
                 out = dict(type='input', id=idx, disabled=True)
                 out['owner'] = None if ic.user == owner else owner.username
                 out['val'] = '' if i[0]['val'] is None else str(i[0]['val'])
-                out['disabled'] = ic.md.article.current_revision.locked
+                out['disabled'] = not field['can_write']
 
                 if field['args']['type'] in ['file', 'files', 'select-user']:
                     out['val'] = None

@@ -72,9 +72,6 @@ async def get(ic, args):
         s = stream.ziplatest(*src, partial=False)
         async with core.streamcontext(s) as streamer:
             async for i in streamer:
-                if None in i[len(users):]:
-                    continue
-
                 users_new, is_list = await db_get_input_users(md, path.name, i[len(users):])
 
                 if set([u.pk for u in users]) != set([u.pk for u in users_new]):

@@ -71,28 +71,6 @@ def normpath(ic, path):
     return pathlib.Path(os.path.normpath(os.path.join(ic.path, str(path))))
 
 
-def can_read_field(md, user, field):
-    if not md.article.can_read(user):
-        return False
-
-    if md.article.current_revision.user.pk == user.pk:
-        return True
-
-    logger.debug(f"4")
-    if 'can_read' not in field['args']:
-        return False
-
-    can_read = field['args']['can_read']
-    if can_read == '_all_':
-        return True
-
-    # user is in the can_read group
-    if can_read == '_':
-        return user.groups.filter(name=can_read.strip('_')).exists()
-    else:
-        return can_read == user.username or can_read == user.email
-
-
 class _MarkdownFactory(object):
     def __init__(self):
         self.cache = dict()
@@ -118,10 +96,10 @@ class _MarkdownFactory(object):
             for field in md.input_fields:
                 if field['cmd'] == 'input':
                     try:
-                        field['cv'] = self.input_cv[(cid, user.pk, field['name'])]
+                        field['cv'] = self.input_cv[(cid, field['name'])]
                     except KeyError:
                         field['cv'] = asyncio.Condition()
-                        self.input_cv[(cid, user.pk, field['name'])] = field['cv']
+                        self.input_cv[(cid, field['name'])] = field['cv']
 
             self.cache[(cid, user.pk)] = md
             return md
