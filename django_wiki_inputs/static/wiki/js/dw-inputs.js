@@ -41,11 +41,13 @@ function receiveMessage(msg) {
 
 
 $(document).ready(function() {
-  webSocketBridge = new channels.WebSocketBridge();
-  webSocketBridge.connect('/ws/django-wiki-inputs?path=' + location.pathname);
-  webSocketBridge.listen(receiveMessage)
+  if (!window.location.href.endsWith("/_preview/")) {
+    webSocketBridge = new channels.WebSocketBridge();
+    webSocketBridge.connect('/ws/django-wiki-inputs?path=' + location.pathname);
+    webSocketBridge.listen(receiveMessage)
 
-  $('[data-toggle="popover"]').popover();
+    $('[data-toggle="popover"]').popover();
+  }
 })
 
 

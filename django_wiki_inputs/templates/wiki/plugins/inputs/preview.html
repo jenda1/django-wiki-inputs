@@ -1,13 +1,15 @@
 {% if cmd == 'display' %}
 <kbd class="dw-input">{{src}}</kbd>
 {% elif args.type == 'text' or not args.type %}
-<input class="form-control dw-input{% if attr.inline %} dw-input-inline{% endif %}"
+<input class="form-control dw-input{% if args.inline %} dw-input-inline{% endif %}"
        type="text"
        disabled />
-{% elif args.type == 'file' %}
+{% elif args.type == 'file' or args.type == 'files' %}
 <input class="form-control dw-input" type="file" multiple disabled />
 {% elif args.type == 'textarea' %}
 <textarea class="form-control dw-input" disabled></textarea>
+{% elif args.type == 'select-user' %}
+<select class="form-control dw-input{% if args.inline %} dw-input-inline{% endif %}" disabled></select>
 {% else %}
 {{args.type}}???
 {% endif %}

@@ -9,6 +9,7 @@ from . import fn
 from . import models
 
 import ipdb # NOQA
+import traceback
 
 logger = logging.getLogger(__name__)
 
@@ -58,7 +59,6 @@ def db_get_input(article, name, user, curr_pk=None):
 #       return
 
 
-
 @core.operator  # NOQA
 async def read_field(ic, user, path):
     name = path.name
@@ -92,7 +92,7 @@ async def read_field(ic, user, path):
         'val': field['args'].get('default'),
     }
 
-    if not misc.can_read_field(md, ic.user, field):
+    if not field.get('can_read', True):
         yield curr
         return
 
@@ -168,8 +168,10 @@ async def input(ic, idx):
     field = ic.md.input_fields[idx]
 
     owner = ic.user
+    restart = True
 
-    while True:
+    while restart:
+        restart = False
         src = [await arg_stream(ic, owner, pathlib.Path(field['name']))]
 
         if 'owner' in field['args']:
@@ -181,12 +183,11 @@ async def input(ic, idx):
                 if 'owner' in field['args']:
                     if i[1] is None:
                         continue
-                    else:
-                        o = await misc.str_to_user(i[1]['val'])
-                        o = o if o else ic.user
 
-                    if o != owner:
+                    o = i[1]['val']
+                    if o.pk != owner.pk:
                         owner = o
+                        restart = True
                         break
 
                 out = dict(type='input', id=idx, disabled=True)

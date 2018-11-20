@@ -101,6 +101,7 @@ async def pprint(ic, args):
                     html += "</tr>"
                 html += "</table>"
 
-            html = render_to_string("wiki/plugins/inputs/pprint_full.html", context={'html': html, 'info': "".join(info)})
+            if info:
+                html = render_to_string("wiki/plugins/inputs/pprint_full.html", context={'html': html, 'info': "".join(info)})
 
             yield {'type': 'html', 'val': html}

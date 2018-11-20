@@ -63,9 +63,13 @@ class InputPreprocessor(markdown.preprocessors.Preprocessor):
     def expand_user_list(self, val):
         if 'macro' in val:
             if val['macro'] == 'all':
-                return [u for u in User.objects.all().order_by('last_name', 'first_name')]
+                qs = User.objects.all().order_by('last_name', 'first_name')
             else:
-                return [u for u in User.objects.filter(Q(groups__name=val['macro']) | Q(pk=self.markdown.user.pk)).order_by('last_name', 'first_name')]
+                qs = User.objects.filter(groups__name=val['macro'])
+                if self.markdown.user:
+                    qs |= User.objects.filter(pk=self.markdown.user.pk)
+
+            return [u for u in qs.order_by('last_name', 'first_name')]
         else:
             return misc.dbsync_get_user(str(val['values']))
 
@@ -109,11 +113,13 @@ class InputPreprocessor(markdown.preprocessors.Preprocessor):
                 if field['args']['type'] == 'select-user':
                     self.parse_select_user(field['args'])
 
+                field['can_read'] = misc.can_read_field(self.markdown, self.markdown.user, field)
 
-                if self.markdown.preview:
-                    html = render_to_string(f"wiki/plugins/inputs/preview.html", context=field)
-                elif misc.can_read_field(self.markdown, self.markdown.user, field):
-                    html = render_to_string(f"wiki/plugins/inputs/input.html", context=field)
+                if field['can_read']:
+                    if self.markdown.preview:
+                        html = render_to_string(f"wiki/plugins/inputs/preview.html", context=field)
+                    else:
+                        html = render_to_string(f"wiki/plugins/inputs/input.html", context=field)
 
             html_repl = self.markdown.htmlStash.store(html, safe=True)
             doc = doc[:(start+shift_n)] + html_repl + doc[(end+shift_n):]

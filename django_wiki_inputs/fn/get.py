@@ -77,7 +77,7 @@ async def get(ic, args):
 
                 users_new, is_list = await db_get_input_users(md, path.name, i[len(users):])
 
-                if users != users_new:
+                if set([u.pk for u in users]) != set([u.pk for u in users_new]):
                     users = users_new
                     break
 

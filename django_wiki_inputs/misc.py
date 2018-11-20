@@ -71,13 +71,14 @@ def normpath(ic, path):
     return pathlib.Path(os.path.normpath(os.path.join(ic.path, str(path))))
 
 
-async def can_read_field(md, user, field):
+def can_read_field(md, user, field):
     if not md.article.can_read(user):
         return False
 
     if md.article.current_revision.user.pk == user.pk:
         return True
 
+    logger.debug(f"4")
     if 'can_read' not in field['args']:
         return False
 
@@ -87,11 +88,9 @@ async def can_read_field(md, user, field):
 
     # user is in the can_read group
     if can_read == '_':
-        return await db_is_user_in_group(user, can_read.strip('_'))
+        return user.groups.filter(name=can_read.strip('_')).exists()
     else:
         return can_read == user.username or can_read == user.email
-
-
 
 
 class _MarkdownFactory(object):

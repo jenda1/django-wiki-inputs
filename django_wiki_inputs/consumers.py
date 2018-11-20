@@ -1,3 +1,4 @@
+from django.contrib.auth.models import User
 from channels.generic.websocket import AsyncJsonWebsocketConsumer
 import logging
 from urllib.parse import parse_qs
@@ -152,8 +153,9 @@ class InputConsumer(AsyncJsonWebsocketConsumer):
 
             elif type(o) == pathlib.PosixPath:
                 v = self.dummy_val.get(str(o))
-                if v:
-                    owner = await misc.str_to_user(v['val'])
+                if v and v.get('val'):
+                    assert isinstance(v.get('val'), User)
+                    owner = v.get('val')
 
         if owner:
             logger.debug(f"get {field['name']}({idx}): {owner}@{field['args']['type']} {val}")
