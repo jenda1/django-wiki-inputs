@@ -123,3 +123,21 @@ $('input[data-id].dw-input,textarea[data-id].dw-input,select[data-id].dw-input')
 });
 
 
+$("button[data-id].dw-input").click(function() {
+    var id = parseInt($(this).attr('data-id'));
+    var diff = $(this).attr('data-value');
+
+    var e = $("select[data-id='" + id + "']");
+    var val = parseInt(e.val());
+
+    if (diff == "+1") {
+        val += 1;
+    } else if (diff == "-1") {
+        val -= 1;
+    }
+
+    e.val(val);
+    sendUpdate(e);
+})
+
+

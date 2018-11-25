@@ -28,7 +28,6 @@ class InputsPlugin(BasePlugin):
                'template': 'wiki/plugins/inputs/sidebar.html',
                'form_class': None,
                'get_form_kwargs': (lambda a: {})}
-
     class RenderMedia:
         js = [
             'channels/js/websocketbridge.js',
@@ -41,7 +40,7 @@ class InputsPlugin(BasePlugin):
 
     markdown_extensions = [InputExtension(), SourceExtension()]
 
-    html_whitelist = ['input', 'textarea', 'select', 'option', 'span', 'kbd']
+    html_whitelist = ['input', 'textarea', 'select', 'option', 'span', 'kbd', 'button']
     html_attributes = {
         'a': ['href', 'title', 'class', 'id', 'data-toggle', 'data-content'],
         'input': ['data-id', 'data-user', 'value', 'class', 'id', 'type', 'disabled', 'multiple'],
@@ -50,6 +49,7 @@ class InputsPlugin(BasePlugin):
         'option': ['value', 'selected'],
         'span': ['data-id', 'data-listen', 'class', 'id'],
         'kbd': ['class'],
+        'button': ['type', 'class', 'data-id', 'data-value'],
     }
 
 

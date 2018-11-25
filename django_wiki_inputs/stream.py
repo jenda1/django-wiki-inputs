@@ -63,13 +63,12 @@ def db_get_input(article, name, user, curr_pk=None):
 async def read_field(ic, user, path):
     name = path.name
 
-
     md = await misc.get_markdown_factory().get_markdown(path.parent, ic.user)
     if not md:
         yield {'type': 'error', 'val': f"{path.parent}: article does not exits"}
         return
 
-    if not md.article.can_read(user):
+    if not md.article.can_read(ic.user):
         yield {'type': 'error', 'val': "🚫"}
         return
 
