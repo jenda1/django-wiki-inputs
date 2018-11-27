@@ -35,11 +35,11 @@ def codehilite(value, arg):
 def b64decode(val):
     return base64.b64decode(val).decode('utf-8')
 
+
 @register.filter
-@stringfilter
-def format_user(val):
-    if val:
+def format_user(u):
+    if u:
         if u.first_name and u.last_name:
             return f"{u.first_name} {u.last_name}"
 
-        return val.username
+        return u.username

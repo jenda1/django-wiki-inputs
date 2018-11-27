@@ -31,16 +31,16 @@ def db_get_input_users(md, name, items):
                 is_list = True
 
                 qs = models.Input.objects.filter(article=md.article, name=name)
-                if flt != 'all':
+                if m.group(1) != 'all':
                     qs = qs.filter(owner__groups__name=m.group(1))
                 qs = qs.order_by('article', 'name', 'owner', '-created').distinct('article', 'name', 'owner')
 
                 for i in qs.all():
-                    users.add(i.owner.username)
+                    users.add(i.owner)
             else:
                 u = misc.dbsync_get_user(flt['val'])
                 if u:
-                    users.add(u.username)
+                    users.add(u)
 
     return users, is_list
 

@@ -2,8 +2,10 @@
 
 {% if type == None %}
 &#129300;
-{% elif type == 'int' or type == 'float' or type == 'str' or type == 'text' or type == 'textarea' %}
+{% elif type == 'int' or type == 'float' or type == 'str' or type == 'text' %}
 {{val}}
+{% elif type == 'textarea' %}
+{{val|linebreaks}}
 {% elif type == 'stdout' %}
 <pre>{{val}}</pre>
 {% elif type == 'error' %}
