@@ -63,7 +63,7 @@ class InputPreprocessor(markdown.preprocessors.Preprocessor):
     def expand_user_list(self, val):
         if 'macro' in val:
             if val['macro'] == 'all':
-                qs = User.objects.all().order_by('last_name', 'first_name')
+                qs = User.objects.all()
             else:
                 qs = User.objects.filter(groups__name=val['macro'])
                 if self.markdown.user:

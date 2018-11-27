@@ -1,4 +1,5 @@
 import logging
+from django.contrib.auth.models import User
 from django import template
 from django.template.defaultfilters import stringfilter
 from django.utils.safestring import mark_safe
@@ -33,3 +34,12 @@ def codehilite(value, arg):
 @stringfilter
 def b64decode(val):
     return base64.b64decode(val).decode('utf-8')
+
+@register.filter
+@stringfilter
+def format_user(val):
+    if val:
+        if u.first_name and u.last_name:
+            return f"{u.first_name} {u.last_name}"
+
+        return val.username

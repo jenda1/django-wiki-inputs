@@ -1,3 +1,5 @@
+{% load wiki_forms_tags %}
+
 {% if args.type == 'text' %}
 <input class="form-control dw-input{% if args.inline %} dw-input-inline{% endif %}"
        type="text"
@@ -22,7 +24,7 @@
 <select class="form-control dw-input{% if args.inline %} dw-input-inline{% endif %}" data-id="{{id}}">
     {% for u in args.values %}
     <option value="{{forloop.counter0}}"{% ifequal u args.default %} selected{% endifequal %}>
-      {{u.first_name}} {{u.last_name}}
+      {{u|format_user}}
     </option>
     {% endfor %}
 </select>
