@@ -1,5 +1,4 @@
 from django.contrib.auth.models import User
-from django.db.models import Q
 import markdown
 from django.template.loader import render_to_string
 import pyparsing as pp
@@ -103,7 +102,7 @@ class InputPreprocessor(markdown.preprocessors.Preprocessor):
         if v.startswith('_') and v.endswith('_'):
             return self.markdown.user.groups.filter(name=v.strip('_')).exists()
         else:
-            return v == self.markdown.user.username or can_read == self.markdown.user.email
+            return v == self.markdown.user.username or v == self.markdown.user.email
 
 
     def run(self, lines):

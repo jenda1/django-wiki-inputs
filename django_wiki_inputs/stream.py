@@ -9,7 +9,6 @@ from . import fn
 from . import models
 
 import ipdb # NOQA
-import traceback
 
 logger = logging.getLogger(__name__)
 
@@ -138,15 +137,9 @@ async def display_fn(ic, field):
         yield {'type': 'error', 'val': f"⚠ neznámá funkce {field['fname']}"}
         return
 
-    try:
-        async with core.streamcontext(source) as streamer:
-            async for item in streamer:
-                yield item
-    finally:
-        if field['fname']:
-            logger.debug(f"{ic.user}@{ic.path}: finalize function {field['fname']}")
-        else:
-            logger.debug(f"{ic.user}@{ic.path}: finalize function pprint")
+    async with core.streamcontext(source) as streamer:
+        async for item in streamer:
+            yield item
 
 
 @core.operator

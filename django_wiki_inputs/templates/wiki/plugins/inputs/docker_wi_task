@@ -4,6 +4,8 @@ import json
 import sys
 from wiki_inputs import *
 
+arg1 = get(1)
+
 try:
     val=eval("""{{text|escapejs}}
 """)
@@ -18,7 +20,7 @@ except Exception as e:
     sys.exit()
 
 if val is None:
-    print("#WI_NATIVE " + json.dumps({"type": "none"}))
+    print("#WI_NATIVE " + json.dumps({"type": None}))
 elif val.__class__.__name__ in ['str', 'int', 'float']:
     print("#WI_NATIVE " + json.dumps({"type": val.__class__.__name__, 'val': val}))
 

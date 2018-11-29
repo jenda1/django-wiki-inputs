@@ -1,5 +1,4 @@
 import logging
-from django.contrib.auth.models import User
 from django import template
 from django.template.defaultfilters import stringfilter
 from django.utils.safestring import mark_safe

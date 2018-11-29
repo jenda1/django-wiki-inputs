@@ -28,6 +28,7 @@ class InputsPlugin(BasePlugin):
                'template': 'wiki/plugins/inputs/sidebar.html',
                'form_class': None,
                'get_form_kwargs': (lambda a: {})}
+
     class RenderMedia:
         js = [
             'channels/js/websocketbridge.js',

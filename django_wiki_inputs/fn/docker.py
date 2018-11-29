@@ -26,17 +26,25 @@ class MyException(Exception):
     pass
 
 
-def serialize_item(v):
+async def send_item(ws, con, aout, item):
     try:
-        return json.dumps(v)
+        out = json.dumps(item)
     except TypeError:
-        pass
+        if isinstance(item[1]['val'], models.Model):
+            item = (item[0], item[1].copy())
+            item[1]['model'] = str(item[1]['val']._meta)
+            item[1]['val'] = item[1]['val'].pk
 
-    if isinstance(v[1]['val'], models.Model):
-        v[1]['model'] = str(v[1]['val']._meta)
-        v[1]['val'] = v[1]['val'].pk
+        out = json.dumps(item)
 
-    return json.dumps(v)
+    if aout.get(item[0], None) == out:
+        return
+
+    logger.debug(f"{con['id'][:12]}: < {out[:120]}")
+    aout[item[0]] = out
+
+    await ws.send_str(out + "\n")
+
 
 async def get_dockerfile(dapi, md, path, user):
     obj = io.BytesIO()
@@ -56,10 +64,6 @@ async def get_dockerfile(dapi, md, path, user):
         ti = tarfile.TarInfo(name=f"wi.{fn}")
 
         if 'type' in item and item['type'] in ['wiki_inputs', 'wiki-inputs', 'wi']:
-            #val = ' '.join(item['text'].split('\n'))
-            #if "'" in val:
-            #    raise MyException(f"character ' is not allowed in wiki-input, use \": {val}")
-
             content = render_to_string("wiki/plugins/inputs/docker_wi_task", context={'text': item['text']}).encode('utf-8')
             ti.mode = 0o777
         elif 'type' in item and item['type'] in ['bash', 'shell']:
@@ -155,9 +159,8 @@ async def websocket_reader(ws):
 
         try:
             for l in m.splitlines():
-                logger.debug(l)
                 yield ('ws', l)
-        except json.JSONDecodeError as e:
+        except json.JSONDecodeError:
             logger.warning("malformed msg from container:\n\t" + "\n\t".join(m.splitlines()))
             yield ('err', "⚠ malformed msg from container ⚠")
 
@@ -168,10 +171,6 @@ async def stream_enum(n, s):
         async for i in streamer:
             yield (n, i)
 
-
-
-async def parse_ws(msg):
-    m = wi_native_re.match(item[1])
 
 
 @core.operator  # NOQA
@@ -196,6 +195,7 @@ async def docker(ic, args):
         logger.debug(f"{con['id'][:12]}: created")
 
         ain = dict()
+        aout = dict()
         for n, arg in enumerate(args[1:]):
             ain[n+1] = stream_enum(n+1, await my_stream.arg_stream(ic, ic.user, arg))
 
@@ -229,28 +229,30 @@ async def docker(ic, args):
                                 try:
                                     msg = json.loads(m.group(1))
                                     if msg['type'] in ['getval']:
+                                        if msg['id'] in ain:
+                                            continue
+
                                         try:
-                                            u = User.object.get(pk=msg['user'])
-                                        except Exception:
+                                            u = User.objects.get(pk=msg['user'])
+                                        except User.DoesNotExist:
                                             u = ic.user
 
-                                        #ain[msg['id']] = stream_enum(msg['id'], await my_stream.arg_stream(ic, u, pathlib.Path(msg['val'])))
+                                        arg = pathlib.Path(msg['val'])
+                                        ain[msg['id']] = stream_enum(msg['id'], await my_stream.arg_stream(ic, u, arg))
 
-                                        #logger.debug(ain)
-                                        #restart = True
-                                        #break
-                                        continue
+                                        restart = True
+                                        break
                                     elif msg['type'] in ['error']:
                                         yield msg
                                         break
                                     else:
                                         yield msg
-                                except json.JSONDecodeError as e:
+                                except json.JSONDecodeError:
                                     pass
 
                             else:
                                 out.append(item[1])
-                                yield {'type':'stdout', 'val':"\n".join(out)}
+                                yield {'type': 'stdout', 'val': "\n".join(out)}
 
                         elif item[0] == 'err':
                             logger.debug(f"{con['id'][:12]}: !! " + ' '.join(str(item[1]).split())[:120])
@@ -258,16 +260,14 @@ async def docker(ic, args):
                             break
 
                         else:
-                            msg = serialize_item(item)
-                            logger.debug(f"{con['id'][:12]}: < {msg[:120]}")
-                            await ws.send_str(msg + "\n")
+                            await send_item(ws, con, aout, item)
 
         finally:
             logger.debug(f"{con['id'][:12]}: delete")
 
             try:
-                #await con.kill()
-                #await con.delete()
+                await con.kill()
+                await con.delete()
                 pass
             except Exception:
                 pass

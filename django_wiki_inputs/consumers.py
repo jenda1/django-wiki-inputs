@@ -83,7 +83,7 @@ class InputConsumer(AsyncJsonWebsocketConsumer):
 
         try:
             self.md = await misc.get_markdown_factory().get_markdown(self.path, self.user)
-        except KeyError as e:
+        except KeyError:
             await self.accept()
             return
 
