@@ -170,6 +170,8 @@ async def input(ic, idx):
             src.append(await arg_stream(ic, ic.user, field['args']['owner']))
 
         s = stream.ziplatest(*src, partial=False)
+        last = None
+
         async with core.streamcontext(s) as streamer:
             async for i in streamer:
                 if 'owner' in field['args']:
@@ -184,8 +186,12 @@ async def input(ic, idx):
 
                 out = dict(type='input', id=idx, disabled=True)
                 out['owner'] = None if ic.user == owner else owner.username
-                out['val'] = '' if i[0]['val'] is None else str(i[0]['val'])
+                out['val'] = '' if i[0] is None or i[0]['val'] is None else str(i[0]['val'])
                 out['disabled'] = not field['can_write']
+
+                if last == out:
+                    continue
+                last = out
 
                 if field['args']['type'] in ['file', 'files', 'select-user']:
                     out['val'] = None

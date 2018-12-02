@@ -46,15 +46,12 @@ async def send_item(ws, con, aout, item):
     await ws.send_str(out + "\n")
 
 
-async def get_dockerfile(dapi, md, path, user):
+async def get_dockerfile(dapi, from_image, md, path, user):
     obj = io.BytesIO()
     tar = tarfile.TarFile(fileobj=obj, mode="w")
-    dfile = list()
 
-    if str(path) == "/":
-        dfile.append("FROM jenda1/testovadlo")
-    else:
-        dfile.append("FROM " + await get_image(dapi, path.parent, user))
+    dfile = list()
+    dfile.append(f"FROM {from_image}")
 
     dst_path = "/wikilt" + str(path)
     for fn, item in md.source_fields.items():
@@ -93,28 +90,31 @@ async def get_dockerfile(dapi, md, path, user):
     return obj
 
 
-async def get_image(dapi, path, user):
+async def get_image(dapi, path, user):  # NOQA
     md = await misc.get_markdown_factory().get_markdown(str(path), user)
     if md is None:
         raise MyException(f"{path}@{user}: does not exists")
 
     if str(path) == '/':
         image_tag = f"wikilt:{md.article.current_revision.pk}"
+        from_image = "jenda1/testovadlo"
+        rebuild_required = False
     else:
         image_tag = f"wikilt{path!s}:{md.article.current_revision.pk}"
+        from_image, rebuild_required = await get_image(dapi, path.parent, user)
 
-
-    try:
-        await dapi.images.inspect(image_tag)
-        logger.debug(f"{path}@{user}: re-use container {image_tag}")
-        return image_tag
-    except aiodocker.exceptions.DockerError as e:
-        if e.status != 404:
-            raise e
+    if not rebuild_required:
+        try:
+            await dapi.images.inspect(image_tag)
+            logger.debug(f"{path}@{user}: re-use container {image_tag}")
+            return image_tag, False
+        except aiodocker.exceptions.DockerError as e:
+            if e.status != 404:
+                raise e
 
     log = list()
 
-    tar = await get_dockerfile(dapi, md, path, user)
+    tar = await get_dockerfile(dapi, from_image, md, path, user)
     logger.debug(f"{path}@{user}: build {image_tag}")
 
     try:
@@ -127,14 +127,16 @@ async def get_image(dapi, path, user):
     finally:
         tar.close()
 
-    return image_tag
+    return image_tag, True
+
 
 async def get_container(dapi, path, user):
     if not hasattr(get_container, "_lock"):
         get_container._lock = asyncio.Lock()
 
     async with get_container._lock:
-        config = {"Image": await get_image(dapi, path, user),
+        img, rebuilded = await get_image(dapi, path, user)
+        config = {"Image": img,
                   "AttachStdin": True,
                   "AttachStdout": True,
                   "AttachStderr": True,
@@ -226,29 +228,32 @@ async def docker(ic, args):
 
                             m = wi_native_re.match(item[1])
                             if m:
-                                try:
-                                    msg = json.loads(m.group(1))
-                                    if msg['type'] in ['getval']:
-                                        if msg['id'] in ain:
-                                            continue
+                                if m.group(1) == 'clear':
+                                    out = list()
+                                else:
+                                    try:
+                                        msg = json.loads(m.group(1))
+                                        if msg['type'] in ['getval']:
+                                            if msg['id'] in ain:
+                                                continue
 
-                                        try:
-                                            u = User.objects.get(pk=msg['user'])
-                                        except User.DoesNotExist:
-                                            u = ic.user
+                                            try:
+                                                u = User.objects.get(pk=msg['user'])
+                                            except User.DoesNotExist:
+                                                u = ic.user
 
-                                        arg = pathlib.Path(msg['val'])
-                                        ain[msg['id']] = stream_enum(msg['id'], await my_stream.arg_stream(ic, u, arg))
+                                            arg = pathlib.Path(msg['val'])
+                                            ain[msg['id']] = stream_enum(msg['id'], await my_stream.arg_stream(ic, u, arg))
 
-                                        restart = True
-                                        break
-                                    elif msg['type'] in ['error']:
-                                        yield msg
-                                        break
-                                    else:
-                                        yield msg
-                                except json.JSONDecodeError:
-                                    pass
+                                            restart = True
+                                            break
+                                        elif msg['type'] in ['error']:
+                                            yield msg
+                                            break
+                                        else:
+                                            yield msg
+                                    except json.JSONDecodeError:
+                                        pass
 
                             else:
                                 out.append(item[1])
@@ -261,6 +266,9 @@ async def docker(ic, args):
 
                         else:
                             await send_item(ws, con, aout, item)
+
+        except GeneratorExit:
+            pass
 
         finally:
             logger.debug(f"{con['id'][:12]}: delete")
