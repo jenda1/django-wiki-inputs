@@ -115,7 +115,7 @@ async def get_image(dapi, path, user):  # NOQA
     log = list()
 
     tar = await get_dockerfile(dapi, from_image, md, path, user)
-    logger.debug(f"{path}@{user}: build {image_tag}")
+    logger.info(f"build {image_tag}")
 
     try:
         for i in await dapi.images.build(fileobj=tar, tag=image_tag, labels={'django.wiki.inputs': '1'}, encoding="identity"):

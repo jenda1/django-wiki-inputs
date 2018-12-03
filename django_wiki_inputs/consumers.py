@@ -111,7 +111,7 @@ class InputConsumer(AsyncJsonWebsocketConsumer):
         try:
             async with self.stream.stream() as s:
                 async for msg in s:
-                    logger.debug(f"{self.user}@{self.path}: send {{:.80s}} ...".format(' '.join(str(msg).split())))
+                    logger.info(f"{self.user}@{self.path}: send {{:.80s}} ...".format(' '.join(str(msg).split())))
                     await self.send_json(msg)
         except asyncio.CancelledError:
             pass

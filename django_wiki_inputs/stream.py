@@ -20,8 +20,8 @@ def db_user_group_exists(user, grp):
 def input_to_dict(val):
     out = json.loads(val.val)
     out['pk'] = val.pk
-    out['created'] = val.created.isoformat(),
-    out['author'] = None if val.author is None else val.author.username,
+    out['created'] = val.created.isoformat()
+    out['author'] = None if val.author is None else val.author.username
 
     return out
 
