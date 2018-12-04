@@ -49,11 +49,12 @@ async def send_item(ws, con, aout, item):
 async def get_dockerfile(dapi, from_image, md, path, user):
     obj = io.BytesIO()
     tar = tarfile.TarFile(fileobj=obj, mode="w")
+    dst_path = "/wikilt" + str(path)
 
     dfile = list()
     dfile.append(f"FROM {from_image}")
+    dfile.append(f"RUN mkdir -p '{dst_path}'")
 
-    dst_path = "/wikilt" + str(path)
     for fn, item in md.source_fields.items():
         fn = fn.replace('"', '_')
         dst = dst_path + "/" + fn
