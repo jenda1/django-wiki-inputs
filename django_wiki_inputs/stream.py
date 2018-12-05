@@ -196,7 +196,7 @@ async def input(ic, idx):
                 if field['args']['type'] in ['file', 'files', 'select-user']:
                     out['val'] = None
 
-                if field['args']['type'] != i[0]['type']:
+                if i[0] is not None and field['args']['type'] != i[0]['type']:
                     logger.warning(f"field type error: {field['args']['type']} != {i[0]['type']}")
 
                 yield out

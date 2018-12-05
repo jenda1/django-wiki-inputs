@@ -68,11 +68,14 @@ async def get(ic, args):
     while True:
         src = [my_stream.read_field(ic, x, path) for x in users]
         src += [await my_stream.arg_stream(ic, ic.user, x) for x in args[1:]]
+        if len(users) == 0:
+            src += [my_stream.read_field(ic, ic.user, path)]
+
 
         s = stream.ziplatest(*src, partial=False)
         async with core.streamcontext(s) as streamer:
             async for i in streamer:
-                users_new, is_list = await db_get_input_users(md, path.name, i[len(users):])
+                users_new, is_list = await db_get_input_users(md, path.name, (i[len(users):])[:len(args[1:])])
 
                 if set([u.pk for u in users]) != set([u.pk for u in users_new]):
                     users = users_new
