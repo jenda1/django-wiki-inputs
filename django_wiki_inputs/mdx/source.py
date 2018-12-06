@@ -38,6 +38,9 @@ class SourceTreeprocessor(markdown.treeprocessors.Treeprocessor):
             if block.tag in ['h1', 'h2', 'h3', 'h4', 'h5', 'h6']:
                 name = block.text
 
+            if name is None:
+                continue
+
             if block.tag == 'pre' and len(block) > 0 and block[0].tag == 'code':
                 txt = block[0].text
 

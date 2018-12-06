@@ -53,9 +53,16 @@ async def get_dockerfile(dapi, from_image, md, path, user):
 
     dfile = list()
     dfile.append(f"FROM {from_image}")
+
+    dfile.append(f"ENV PATH {dst_path}:$PATH")
+    dfile.append(f"ENV WI_HOME {dst_path}")
     dfile.append(f"RUN mkdir -p '{dst_path}'")
 
     for fn, item in md.source_fields.items():
+        if fn == "_Dockerfile_":
+            dfile.extend(item['text'].splitlines())
+            continue
+
         fn = fn.replace('"', '_')
         dst = dst_path + "/" + fn
 
@@ -75,8 +82,11 @@ async def get_dockerfile(dapi, from_image, md, path, user):
         ti.size = len(content)
         tar.addfile(ti, io.BytesIO(content))
 
-    dfile.append(f"ENV PATH {dst_path}:$PATH")
-    dfile.append(f"ENV WI_HOME {dst_path}")
+
+    #for child in md.article.get_children(
+    #        articles__article__current_revision__deleted=False,
+    #        user_can_read=md.user):
+    #    if child.path == 'lib':
 
     logger.debug("\n\t" + "\n\t".join(dfile))
 
@@ -122,7 +132,11 @@ async def get_image(dapi, path, user):  # NOQA
         for i in await dapi.images.build(fileobj=tar, tag=image_tag, labels={'django.wiki.inputs': '1'}, encoding="identity"):
             if 'stream' in i:
                 log.append("\t"+i['stream'].strip())
-    except Exception:
+            if 'error' in i:
+                raise MyException(f"Dockerfile: {i['error']}")
+    except MyException:
+        raise
+    except aiodocker.exceptions.DockerError as e:
         logger.debug(f"{path}@{user}: docker build failed:\n" + "\n".join(log))
         raise
     finally:
