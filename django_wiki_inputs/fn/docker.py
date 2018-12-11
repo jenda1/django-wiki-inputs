@@ -83,7 +83,7 @@ async def get_dockerfile(dapi, from_image, md, path, user):
         tar.addfile(ti, io.BytesIO(content))
 
 
-    #for child in md.article.get_children(
+    # for child in md.article.get_children(
     #        articles__article__current_revision__deleted=False,
     #        user_can_read=md.user):
     #    if child.path == 'lib':
@@ -136,7 +136,7 @@ async def get_image(dapi, path, user):  # NOQA
                 raise MyException(f"Dockerfile: {i['error']}")
     except MyException:
         raise
-    except aiodocker.exceptions.DockerError as e:
+    except aiodocker.exceptions.DockerError:
         logger.debug(f"{path}@{user}: docker build failed:\n" + "\n".join(log))
         raise
     finally:
@@ -209,7 +209,7 @@ async def docker(ic, args):
         if con is None:
             return
 
-        logger.debug(f"{con['id'][:12]}: created")
+        logger.info(f"{con['id'][:12]}: created")
 
         ain = dict()
         aout = dict()

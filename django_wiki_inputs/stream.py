@@ -100,7 +100,9 @@ async def read_field(ic, user, path):
                 curr = ic.dummy_val.get(name, curr)
         else:
             try:
-                curr = await db_get_input(md.article, name, user, curr['pk'])
+                c = await db_get_input(md.article, name, user, curr['pk'])
+                if c is not None:
+                    curr = c
             except models.Input.DoesNotExist:
                 pass
 

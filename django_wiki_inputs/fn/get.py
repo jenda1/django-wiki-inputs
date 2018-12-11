@@ -19,6 +19,10 @@ filt_re = re.compile(r"^_(.+)_$")
 def db_get_input_users(md, name, items):
     is_list = len(items) > 1
     users = set()
+
+    if items is None:
+        return users, is_list
+
     for flt in items:
         if 'val' not in flt:
             continue
