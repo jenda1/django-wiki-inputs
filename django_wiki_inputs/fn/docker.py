@@ -245,20 +245,34 @@ async def docker(ic, args):
                             if m:
                                 if m.group(1) == 'clear':
                                     out = list()
+                                    yield {'type': None, 'val': ""}
+
+                                elif m.group(1).startswith('progress'):
+                                    yield {'type': 'html', 'val': '<div class="progress"><div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" aria-valuenow="50" aria-valuemin="0" aria-valuemax="100" style="width: 50%"></div></div>'}
+
                                 else:
                                     try:
                                         msg = json.loads(m.group(1))
-                                        if msg['type'] in ['getval']:
-                                            if msg['id'] in ain:
+                                        if msg.get('type') in ['getval']:
+                                            mid = msg.get('id')
+                                            mval = msg.get('val')
+                                            muser = msg.get('user', ic.user.pk)
+
+                                            if mid is None or mval is None:
+                                                logger.warning(f"{con['id'][:12]}: getval: broken msg: > {item[1][:120]}")
+                                                continue
+
+                                            if mid in ain:
                                                 continue
 
                                             try:
-                                                u = User.objects.get(pk=msg['user'])
+                                                u = User.objects.get(pk=muser)
                                             except User.DoesNotExist:
-                                                u = ic.user
+                                                logger.warning(f"{con['id'][:12]}: getval: unknown user {muser}")
+                                                continue
 
-                                            arg = pathlib.Path(msg['val'])
-                                            ain[msg['id']] = stream_enum(msg['id'], await my_stream.arg_stream(ic, u, arg))
+                                            arg = pathlib.Path(mval)
+                                            ain[mid] = stream_enum(mid, await my_stream.arg_stream(ic, u, arg))
 
                                             restart = True
                                             break
@@ -268,7 +282,8 @@ async def docker(ic, args):
                                         else:
                                             yield msg
                                     except json.JSONDecodeError:
-                                        pass
+                                        logger.warning(f"{con['id'][:12]}: broken msg: > {item[1][:120]}")
+                                        continue
 
                             else:
                                 out.append(item[1])
