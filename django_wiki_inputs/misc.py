@@ -93,13 +93,12 @@ class _MarkdownFactory(object):
             logger.debug(f"{user}@{path}: render current version")
             md = await db_get_article_markdown(article, user)
 
-            for field in md.input_fields:
-                if field['cmd'] == 'input':
-                    try:
-                        field['cv'] = self.input_cv[(cid, field['name'])]
-                    except KeyError:
-                        field['cv'] = asyncio.Condition()
-                        self.input_cv[(cid, field['name'])] = field['cv']
+            for key, field in md.input_fields.items():
+                try:
+                    field['cv'] = self.input_cv[(cid, key)]
+                except KeyError:
+                    field['cv'] = asyncio.Condition()
+                    self.input_cv[(cid, key)] = field['cv']
 
             self.cache[(cid, user.pk)] = md
             return md

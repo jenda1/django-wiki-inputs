@@ -75,10 +75,8 @@ async def read_field(ic, user, path):
         yield md.source_fields.get(name)
         return
 
-    for field in md.input_fields:
-        if field['cmd'] == 'input' and field['name'] == name:
-            break
-    else:
+    field = md.input_fields.get(name)
+    if name is None:
         yield None
         return
 
@@ -146,7 +144,7 @@ async def display_fn(ic, field):
 
 @core.operator
 async def display(ic, idx):
-    field = ic.md.input_fields[idx]
+    field = ic.md.display_fields[idx]
     if 'fn' in field:
         source = display_fn(ic, {'fname': 'pprint', 'args': [field['fn']]})
     elif 'path' in field:
@@ -158,11 +156,11 @@ async def display(ic, idx):
 
 
 @core.operator
-async def input(ic, idx):
-    field = ic.md.input_fields[idx]
+async def input(ic, name):
+    field = ic.md.input_fields[name]
 
     owner = ic.user
-    restart = True
+    restart = field['can_read']
 
     while restart:
         restart = False
@@ -186,7 +184,7 @@ async def input(ic, idx):
                         restart = True
                         break
 
-                out = dict(type='input', id=idx, disabled=True)
+                out = dict(type='input', id=field['name'], disabled=True)
                 out['owner'] = None if ic.user == owner else owner.username
                 out['val'] = '' if i[0] is None or i[0]['val'] is None else str(i[0]['val'])
                 out['disabled'] = not field['can_write']

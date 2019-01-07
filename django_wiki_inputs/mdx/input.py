@@ -54,8 +54,11 @@ class InputPreprocessor(markdown.preprocessors.Preprocessor):
     def __init__(self, *args, **kwargs):
         super(InputPreprocessor, self).__init__(*args, **kwargs)
 
-        self.input_fields = list()
+        self.display_fields = list()
+        self.input_fields = dict()
+
         if self.markdown:
+            self.markdown.display_fields = self.display_fields
             self.markdown.input_fields = self.input_fields
 
     # [f"{u.first_name} {u.last_name} <{u.email}>" for u in usrs]
@@ -112,18 +115,20 @@ class InputPreprocessor(markdown.preprocessors.Preprocessor):
 
         for t, start, end in pparser.scanString(doc):
             field = t.asDict()
-            field['id'] = len(self.input_fields)
             field['src'] = doc[(start+shift_n+1):(end+shift_n-1)]
             field['user'] = self.markdown.user
 
-            html = ""
             if field['cmd'] == 'display':
+                field['id'] = len(self.display_fields)
+                self.display_fields.append(field)
+
                 if self.markdown.preview:
                     html = render_to_string(f"wiki/plugins/inputs/preview.html", context=field)
                 else:
                     html = render_to_string(f"wiki/plugins/inputs/display.html", context=field)
 
             elif field['cmd'] == 'input':
+
                 if type(field['args']) == list:
                     assert len(field['args']) == 0
                     field['args'] = dict()
@@ -135,21 +140,22 @@ class InputPreprocessor(markdown.preprocessors.Preprocessor):
                     self.parse_select_user(field['args'])
 
                 field['can_read'] = self.markdown.article.can_read(self.markdown.user) and self.can_field(field, 'can_read')
-
                 field['can_write'] = field['can_read'] and self.can_field(field, 'can_write') and not self.markdown.article.current_revision.locked
+
+                self.input_fields[field['name']] = field
 
                 if field['can_read']:
                     if self.markdown.preview:
                         html = render_to_string(f"wiki/plugins/inputs/preview.html", context=field)
                     else:
                         html = render_to_string(f"wiki/plugins/inputs/input.html", context=field)
+                else:
+                    html = ""
 
             html_repl = self.markdown.htmlStash.store(html, safe=True)
             doc = doc[:(start+shift_n)] + html_repl + doc[(end+shift_n):]
 
             shift_n -= end-start
             shift_n += len(html_repl)
-
-            self.input_fields.append(field)
 
         return doc.split("\n")

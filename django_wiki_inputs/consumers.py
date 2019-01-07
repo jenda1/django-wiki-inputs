@@ -88,15 +88,11 @@ class InputConsumer(AsyncJsonWebsocketConsumer):
             return
 
         streams = list()
-        for idx, field in enumerate(self.md.input_fields):
-            if field['cmd'] == 'input':
-                streams.append(my_stream.input(self, idx))
+        for idx, field in enumerate(self.md.display_fields):
+            streams.append(my_stream.display(self, idx))
 
-            elif field['cmd'] == 'display':
-                streams.append(my_stream.display(self, idx))
-
-            else:
-                logger.error(f"{self.user}@{self.path}: unknown filed type {field['cmd']}")
+        for name, field in self.md.input_fields.items():
+            streams.append(my_stream.input(self, name))
 
         self.stream = stream.merge(*streams)
 
@@ -128,16 +124,11 @@ class InputConsumer(AsyncJsonWebsocketConsumer):
 
     async def receive_json(self, content):  # NOQA
         try:
-            idx = int(content['id'])
-            field = self.md.input_fields[idx]
+            field = self.md.input_fields[content['id']]
             val = content['val']
             owner = content.get('owner', self.user)
         except Exception:
             logger.warning(f"{self.user}@{self.path}: broken request")
-            return
-
-        if field['cmd'] != 'input':
-            logger.warning(f"{self.user}@{self.path}: broken request ({field['cmd']} != input)")
             return
 
         if not (field['can_read'] and field['can_write']):
@@ -157,9 +148,9 @@ class InputConsumer(AsyncJsonWebsocketConsumer):
                     owner = v.get('val')
 
         if owner:
-            logger.debug(f"get {field['name']}({idx}): {owner}@{field['args']['type']} {val}")
+            logger.debug(f"get {field['name']}: {owner}@{field['args']['type']} {val}")
         else:
-            logger.debug(f"get {field['name']}({idx}): {field['args']['type']} {val}")
+            logger.debug(f"get {field['name']}: {field['args']['type']} {val}")
 
         # verify files input
         try:

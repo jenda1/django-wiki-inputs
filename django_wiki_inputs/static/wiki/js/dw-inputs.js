@@ -12,7 +12,7 @@ $.ajaxSetup({
 
 function receiveMessage(msg) {
   var type = String(msg['type']);
-  var fid = Number(msg['id']);
+  var fid = msg['id'];
 
   if (type == 'input') {
     var e = $('[data-id=' + fid + '].dw-input');
