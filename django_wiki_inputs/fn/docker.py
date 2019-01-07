@@ -68,14 +68,10 @@ async def get_dockerfile(dapi, from_image, md, path, user):
 
         ti = tarfile.TarInfo(name=f"wi.{fn}")
 
-        if 'type' in item and item['type'] in ['wiki_inputs', 'wiki-inputs', 'wi']:
-            content = render_to_string("wiki/plugins/inputs/docker_wi_task", context={'text': item['text']}).encode('utf-8')
+        content = item['text'].encode('utf-8')
+
+        if 'type' in item and item['type'] in ['python', 'bash', 'shell'] and item['text'].startswith("#!/"):
             ti.mode = 0o777
-        elif 'type' in item and item['type'] in ['bash', 'shell']:
-            content = ("#!/bin/bash\n\n" + item['text']).encode('utf-8')
-            ti.mode = 0o777
-        else:
-            content = item['text'].encode('utf-8')
 
         dfile.append(f"COPY [\"{ti.name}\", \"{dst}\"]")
 
@@ -104,7 +100,7 @@ async def get_dockerfile(dapi, from_image, md, path, user):
 async def get_image(dapi, path, user):  # NOQA
     md = await misc.get_markdown_factory().get_markdown(str(path), user)
     if md is None:
-        raise MyException(f"{path}@{user}: does not exists")
+        raise MyException(f"{path} does not exists")
 
     if str(path) == '/':
         image_tag = f"wikilt:{md.article.current_revision.pk}"

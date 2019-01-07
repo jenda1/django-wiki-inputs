@@ -8,6 +8,8 @@ from . import misc
 from . import fn
 from . import models
 
+from .fn.docker import docker
+
 import ipdb # NOQA
 
 logger = logging.getLogger(__name__)
@@ -131,11 +133,9 @@ async def display_fn(ic, field):
     try:
         m = getattr(fn, field['fname'])
         fnc = getattr(m, field['fname'])
-
         source = fnc(ic, field['args'])
     except AttributeError:
-        yield {'type': 'error', 'val': f"⚠ neznámá funkce {field['fname']}"}
-        return
+        source = docker(ic, [pathlib.Path("/lib")/field['fname'].replace('.','/')] + field['args'])
 
     async with core.streamcontext(source) as streamer:
         async for item in streamer:
