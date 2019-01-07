@@ -131,7 +131,13 @@ class InputConsumer(AsyncJsonWebsocketConsumer):
             logger.warning(f"{self.user}@{self.path}: broken request")
             return
 
-        if not (field['can_read'] and field['can_write']):
+        if not field['can_read']:
+            return
+
+        if field['can_write'] is False:
+            return
+
+        if field['can_write'] is None and owner != self.user:
             return
 
         owner = None

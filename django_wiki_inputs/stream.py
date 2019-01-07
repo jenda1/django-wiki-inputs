@@ -187,7 +187,7 @@ async def input(ic, name):
                 out = dict(type='input', id=field['name'], disabled=True)
                 out['owner'] = None if ic.user == owner else owner.username
                 out['val'] = '' if i[0] is None or i[0]['val'] is None else str(i[0]['val'])
-                out['disabled'] = not field['can_write']
+                out['disabled'] = not (field['can_write'] is True or (field['can_write'] is None and out['owner'] is None))
 
                 if last == out:
                     continue

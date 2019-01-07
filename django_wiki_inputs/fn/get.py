@@ -1,3 +1,4 @@
+from django.db.models import Q
 from django.contrib.auth.models import User
 from aiostream import stream, core
 import logging
@@ -16,38 +17,40 @@ filt_re = re.compile(r"^_(.+)_$")
 
 
 @database_sync_to_async
-def db_get_input_users(md, name, items):
+def db_get_input_users(md, field, qfilter, items):
     is_list = len(items) > 1
-    users = set()
 
-    if items is None:
-        return users, is_list
-
+    qall = None
     for flt in items:
         if 'val' not in flt:
             continue
 
         if isinstance(flt['val'], User):
-            users.add(flt['val'])
+            q = Q(owner=flt['val'])
+
         else:
             m = filt_re.match(flt['val'])
             if m:
                 is_list = True
 
-                qs = models.Input.objects.filter(article=md.article, name=name)
-                if m.group(1) != 'all':
-                    qs = qs.filter(owner__groups__name=m.group(1))
-                qs = qs.order_by('article', 'name', 'owner', '-created').distinct('article', 'name', 'owner')
+                if m.group(1) == 'all':
+                    q = Q(owner__groups__name__isnull=False)
+                else:
+                    q = Q(owner__groups__name=m.group(1))
 
-                for i in qs.all():
-                    users.add(i.owner)
             else:
-                u = misc.dbsync_get_user(flt['val'])
-                if u:
-                    users.add(u)
+                q = Q(owner=misc.dbsync_get_user(flt['val']))
 
-    return users, is_list
+        if qall is None:
+            qall = q
+        else:
+            qall |= q
 
+    q = qfilter & qall
+
+    qs = models.Input.objects.filter(qfilter & qall).order_by('article', 'name', 'owner', '-created').distinct('article', 'name', 'owner')
+
+    return [i.owner for i in qs.all()], is_list
 
 
 @core.operator
@@ -67,6 +70,14 @@ async def get(ic, args):
         yield {'type': 'error', 'val': f"⚠ get() article {path.parent} does not exist ⚠"}
         return
 
+    field = md.input_fields.get(path.name)
+    if field is None:
+        yield {'type': 'error', 'val': f"⚠ get() article {path.name} does not exist ⚠"}
+
+    q = Q(article=md.article) & Q(name=field['name'])
+    if field['can_write'] in [False, None]:
+        q &= Q(owner=ic.user)
+
     users = set()
 
     while True:
@@ -75,11 +86,10 @@ async def get(ic, args):
         if len(users) == 0:
             src += [my_stream.read_field(ic, ic.user, path)]
 
-
         s = stream.ziplatest(*src, partial=False)
         async with core.streamcontext(s) as streamer:
             async for i in streamer:
-                users_new, is_list = await db_get_input_users(md, path.name, (i[len(users):])[:len(args[1:])])
+                users_new, is_list = await db_get_input_users(md, field, q, (i[len(users):])[:len(args[1:])])
 
                 if set([u.pk for u in users]) != set([u.pk for u in users_new]):
                     users = users_new

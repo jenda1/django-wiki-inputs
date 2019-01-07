@@ -95,7 +95,7 @@ class InputPreprocessor(markdown.preprocessors.Preprocessor):
 
         if key not in field['args']:
             # if key is not set, just own inputs
-            return True
+            return None
 
         v = field['args'][key]
         if v == '_all_':
@@ -139,8 +139,17 @@ class InputPreprocessor(markdown.preprocessors.Preprocessor):
                 if field['args']['type'] == 'select-user':
                     self.parse_select_user(field['args'])
 
-                field['can_read'] = self.markdown.article.can_read(self.markdown.user) and self.can_field(field, 'can_read')
-                field['can_write'] = field['can_read'] and self.can_field(field, 'can_write') and not self.markdown.article.current_revision.locked
+                if not self.markdown.article.can_read(self.markdown.user):
+                    field['can_read'] = False
+                elif self.can_field(field, 'can_read') is False:
+                    field['can_read'] = False
+                else:
+                    field['can_read'] = True
+
+                if not field['can_read'] or self.markdown.article.current_revision.locked:
+                    field['can_write'] = False
+                else:
+                    field['can_write'] = self.can_field(field, 'can_write')
 
                 self.input_fields[field['name']] = field
 
