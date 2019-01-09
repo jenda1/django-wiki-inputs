@@ -22,6 +22,9 @@ def db_get_input_users(md, field, qfilter, items):
 
     qall = None
     for flt in items:
+        if flt is None:
+            return None, is_list
+
         if 'val' not in flt:
             continue
 
@@ -90,6 +93,8 @@ async def get(ic, args):
         async with core.streamcontext(s) as streamer:
             async for i in streamer:
                 users_new, is_list = await db_get_input_users(md, field, q, (i[len(users):])[:len(args[1:])])
+                if users_new is None:
+                    continue
 
                 if set([u.pk for u in users]) != set([u.pk for u in users_new]):
                     users = users_new
@@ -97,8 +102,10 @@ async def get(ic, args):
 
                 if is_list:
                     yield {'type': 'user-list', 'val': dict(zip([u.username for u in users], i[:len(users)])), }
-                else:
+                elif len(users) > 0:
                     yield i[0]
+                else:
+                    yield {'type': 'None', 'val':None}
 
             else:
                 return

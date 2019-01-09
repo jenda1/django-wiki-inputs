@@ -252,7 +252,9 @@ async def docker(ic, args):
                                         if msg.get('type') in ['getval']:
                                             mid = msg.get('id')
                                             mval = msg.get('val')
-                                            muser = msg.get('user', ic.user.pk)
+                                            muser = msg.get('user')
+                                            if muser is None:
+                                                muser = ic.user.pk
 
                                             if mid is None or mval is None:
                                                 logger.warning(f"{con['id'][:12]}: getval: broken msg: > {item[1][:120]}")

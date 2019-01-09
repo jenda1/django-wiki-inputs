@@ -78,7 +78,7 @@ async def read_field(ic, user, path):
         return
 
     field = md.input_fields.get(name)
-    if name is None:
+    if field is None:
         yield None
         return
 
