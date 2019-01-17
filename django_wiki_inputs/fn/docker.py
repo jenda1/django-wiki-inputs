@@ -11,6 +11,7 @@ import json
 import aiohttp
 import pathlib
 import re
+import time
 from django.template.loader import render_to_string
 from django.contrib.auth.models import User
 from django.db import models
@@ -103,12 +104,13 @@ async def get_image(dapi, path, user):  # NOQA
         raise MyException(f"{path} does not exists")
 
     if str(path) == '/':
-        image_tag = f"wikilt:{md.article.current_revision.pk}"
         from_image = "jenda1/testovadlo"
         rebuild_required = False
+        image_tag = f"wikilt:{md.article.current_revision.pk}"
     else:
-        image_tag = f"wikilt{path!s}:{md.article.current_revision.pk}"
         from_image, rebuild_required = await get_image(dapi, path.parent, user)
+        ptag = from_image.split(':')[-1]
+        image_tag = f"wikilt{path!s}:{ptag}.{md.article.current_revision.pk}"
 
     if not rebuild_required:
         try:
@@ -216,6 +218,10 @@ async def docker(ic, args):
         await con.start()
 
         logger.debug(f"{con['id'][:12]}: started")
+        
+        msgs_n = 0
+        msgs_ts = time.time()
+
 
         try:
             restart = True
@@ -236,6 +242,14 @@ async def docker(ic, args):
                     async for item in streamer:
                         if item[0] == 'ws':
                             logger.debug(f"{con['id'][:12]}: > {item[1][:120]}")
+
+                            msgs_n += 1
+                            tdiff = time.time() - msgs_ts
+
+                            if tdiff > 20 and msgs_n > 1000 and msgs_n/tdiff > 20:
+                                logger.info(f"{con['id'][:12]}: receiving too much messages {msgs_n} in {tdiff}s")
+                                yield {'type': 'error', 'val': f"receiving too much messages {msgs_n} in {tdiff}s"}
+                                break
 
                             m = wi_native_re.match(item[1])
                             if m:
@@ -279,8 +293,8 @@ async def docker(ic, args):
                                             break
                                         else:
                                             yield msg
-                                    except json.JSONDecodeError:
-                                        logger.warning(f"{con['id'][:12]}: broken msg: > {item[1][:120]}")
+                                    except json.JSONDecodeError as e:
+                                        logger.warning(f"{con['id'][:12]}: broken msg: {e!s}")
                                         continue
 
                             else:

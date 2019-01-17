@@ -11,8 +11,8 @@ from .. import misc
 logger = logging.getLogger(__name__)
 pp.ParserElement.setDefaultWhitespaceChars(' \t')
 
-pident = pp.Combine(pp.Word(pp.alphas, pp.alphas+pp.nums) + pp.ZeroOrMore("_" + pp.Word(pp.alphas+pp.nums)))
-pfname = pp.Word(pp.alphas+pp.nums, pp.alphas+pp.nums+"-_.")
+pident = pp.Combine(pp.Word(pp.alphas, pp.alphas+pp.nums+"-.") + pp.ZeroOrMore("_" + pp.Word(pp.alphas+pp.nums+"-.")))
+pfname = pp.Word(pp.alphas+pp.nums, pp.alphas+pp.nums+"-_")
 
 pint = pp.Combine(pp.Optional('-')+pp.Word(pp.nums)).setParseAction(lambda i: int(i[0]))
 pfloat = pp.Combine(pp.Optional('-')+pp.Word(pp.nums)+pp.Literal('.')+pp.Word(pp.nums)).setParseAction(lambda f: float(f[0]))
