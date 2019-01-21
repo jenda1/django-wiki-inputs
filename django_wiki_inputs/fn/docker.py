@@ -163,21 +163,20 @@ async def get_container(dapi, path, user):
 
 @core.operator
 async def websocket_reader(ws):
+    m = ""
     async for msg in ws:
         if msg.type == aiohttp.WSMsgType.TEXT:
             m = msg.data.rstrip()
         elif msg.type == aiohttp.WSMsgType.BINARY:
-            m = msg.data.decode('utf8').rstrip()
+            m += msg.data.decode('utf8')
+            if not m.endswith('\n'):
+                continue
         elif msg.type == aiohttp.WSMsgType.ERROR:
             logger.error(f"container error: {msg.data}")
             break
 
-        try:
-            for l in m.splitlines():
-                yield ('ws', l)
-        except json.JSONDecodeError:
-            logger.warning("malformed msg from container:\n\t" + "\n\t".join(m.splitlines()))
-            yield ('err', "⚠ malformed msg from container ⚠")
+        for l in m.splitlines():
+            yield ('ws', l)
 
 
 @core.operator
